@@ -6,7 +6,7 @@ Hi! This file demonstrates the Custom Properties of Marble Blast Powered Up Webp
 # Custom PowerUp Properties #
  `superJumpHeight = 20;`
  
- `superSpeedStrenght = 25;` 
+ `superSpeedStrenght = 45;` 
  
  `gyrocopterTime = 5000;`
  
