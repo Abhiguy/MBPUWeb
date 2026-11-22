@@ -35,7 +35,7 @@ export class TTTState {
 			[1, 4, 7], // Column 2
 			[2, 5, 8], // Column 3
 			[0, 4, 8], // Diagonal \
-			[2, 4, 6], // Diagonal /
+			[2, 4, 6] // Diagonal /
 		];
 
 		for (const combination of winningCombinations) {
@@ -71,7 +71,7 @@ export class TTTState {
 
 	handleTTTWin(winner: number) {
 
-		// Handle draw	
+		// Handle draw
 		if (winner === 1) {
 			state.menu.hud.displayHelp("You Won!");
 			// Trigger beautiful fireworks on all the pad combination at which the marble made to win this puzzle!

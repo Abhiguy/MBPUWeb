@@ -32,6 +32,11 @@ export abstract class FinishScreen {
 		return !this.div.classList.contains('hidden');
 	}
 
+	/** How many best time rows are shown for the current level. Challenge levels only show a single best time. */
+	get visibleBestTimeCount() {
+		return state.level?.mission.type === 'challenge' ? 1 : this.bestTimeCount;
+	}
+
 	constructor(menu: Menu) {
 		this.initProperties();
 
@@ -116,7 +121,7 @@ export abstract class FinishScreen {
 	}
 
 	abstract initProperties(): void;
-	abstract showMessage(type: 'failed' | 'qualified' | 'gold' | 'ultimate'): void;
+	abstract showMessage(type: 'failed' | 'qualified' | 'gold' | 'ultimate' | 'challenge'): void;
 	abstract updateTimeElements(elapsedTime: number, bonusTime: number, failedToQualify: boolean): void;
 	abstract createBestTimeElement(): HTMLDivElement;
 	abstract updateBestTimeElement(element: HTMLDivElement, score: BestTimes[number], rank: number): void;
@@ -134,7 +139,9 @@ export abstract class FinishScreen {
 		this.updateTimeElements(elapsedTime, bonusTime, this.failedToQualify);
 
 		// ✅ Then use the correct logic using updated this.failedToQualify
-		if (level.mission.backwardClock) {
+		if (level.mission.type === 'challenge') {
+			this.showMessage(this.failedToQualify ? 'failed' : 'challenge');
+		} else if (level.mission.backwardClock) {
 			if (this.failedToQualify) {
 				this.showMessage('failed');
 			} else {
@@ -155,7 +162,7 @@ export abstract class FinishScreen {
 		let bestTimes = StorageManager.getBestTimesForMission(level.mission.path, this.bestTimeCount, this.scorePlaceholderName);
 		let place = bestTimes.filter((time) => time[1] <= level.finishTime.gameplayClock).length; // The place is determined by seeing how many scores there currently are faster than the achieved time.
 
-		if (place < this.bestTimeCount && (!failedToQualify || this.storeNotQualified)) {
+		if (place < this.visibleBestTimeCount && (!failedToQualify || this.storeNotQualified)) {
 			// Prompt the user to enter their name
 			this.nameEntryScreenDiv.classList.remove('hidden');
 			this.nameEntryText.textContent = this.generateNameEntryText(place);
@@ -182,8 +189,11 @@ export abstract class FinishScreen {
 	/** Updates the best times. */
 	drawBestTimes() {
 		let bestTimes = StorageManager.getBestTimesForMission(state.level.mission.path, this.bestTimeCount, this.scorePlaceholderName);
+		let visibleCount = this.visibleBestTimeCount;
 		for (let i = 0; i < this.bestTimeCount; i++) {
-			this.updateBestTimeElement(this.bestTimeContainer.children[i] as HTMLDivElement, bestTimes[i], i + 1);
+			let element = this.bestTimeContainer.children[i] as HTMLDivElement;
+			element.style.display = (i < visibleCount) ? '' : 'none'; // Challenge levels only show the top time
+			if (i < visibleCount) this.updateBestTimeElement(element, bestTimes[i], i + 1);
 		}
 	}
 
@@ -195,7 +205,7 @@ export abstract class FinishScreen {
 			Replay.download(serialized, level.mission, false);
 			if (Util.isTouchDevice && Util.isInFullscreen()) state.menu.showAlertPopup('Downloaded', 'The .wrec has been downloaded.');
 		} else {
-			let confirmed = await state.menu.showConfirmPopup('Confirm', `Do you want to start the replay for the last playthrough? This can be done only once if this isn't one of your top ${this.bestTimeCount} local scores.`);
+			let confirmed = await state.menu.showConfirmPopup('Confirm', `Do you want to start the replay for the last playthrough? This can be done only once if this isn't one of your top ${this.visibleBestTimeCount} local scores.`);
 			if (!confirmed) return;
 
 			level.replay.mode = 'playback';

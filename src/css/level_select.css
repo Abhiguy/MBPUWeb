@@ -42,8 +42,8 @@
 #tab-sandbox {
 	display: block;
 	position: absolute;
-	top: 257px;
-	left: 205px;
+	top: 252px;
+	left: 236px;
 }
 
 #level-select-text-window {
@@ -82,8 +82,8 @@
 #level-select-home-button {
 	display: block;
 	position: absolute;
-	top: 257px;
-	left: 103px;
+	top: 262px;
+	left: 160px;
 }
 
 #level-select-level-window {
@@ -98,7 +98,7 @@
 
 #level-select-level-window > img:first-child {
 	position: absolute;
-	top: 0;
+	top: -10px;
 	left: 0;
 	z-index: 0;
 }
@@ -109,7 +109,7 @@
 	object-fit: fill;
 	z-index: -2;
 	position: absolute;
-	top: 0;
+	top: -9px;
 }
 
 #level-number {
@@ -118,7 +118,7 @@
 	left: 0;
 	right: 0;
 	text-align: center;
-	bottom: 14px;
+	bottom: 21px;
 	font-family: DomCasualRegular;
 	color: white;
 	text-shadow: 1px 1px 0px black, 1px 1px 0px black;

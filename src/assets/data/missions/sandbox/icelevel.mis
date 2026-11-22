@@ -204,14 +204,5 @@ new SimGroup(MissionGroup) {
       static = "1";
       rotate = "1";
    };
-   new ParticleEmitterNode() {
-      position = "-7.75 -20.5656 174.5";//"-113.331 30.2487 202.197";-118.581 21.4831 174.5
-      rotation = "1 0 0 0";
-      scale = "1 1 1";
-      dataBlock = "FireWorkNode";
-      emitter = "SnowLocalEmitter";
-      velocity = "1";
-   };
-
 };
 //--- OBJECT WRITE END ---

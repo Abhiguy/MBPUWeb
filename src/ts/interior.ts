@@ -12,9 +12,8 @@ import { Vector3 } from "./math/vector3";
 import { Matrix4 } from "./math/matrix4";
 import { Plane } from "./math/plane";
 import { Quaternion } from "./math/quaternion";
+import { getBannedProperties, bannedTextures, BANNED_FORCE_MAGNITUDE, BANNED_FRICTION_FACTOR, BANNED_RESTITUTION_FACTOR, setBanType, banRed, banOrange, banYellow, banGreen, banCyan, banBlue, banPurple, banPink, banBrown, banWhite, banGray, banBlack, banTubes, resetBan } from './banlist';
 import hxDif from './parsing/hx_dif';
-import { Box3 } from "./math/box3"; // You might need to import or define it
-import { Texture } from "./rendering/texture";
 export const INTERIOR_DEFAULT_FRICTION = 1;
 export const INTERIOR_DEFAULT_RESTITUTION = 1;
 const SMOOTH_SHADING_ANGLE_THRESHOLD = Math.cos(Util.degToRad(15));
@@ -40,7 +39,7 @@ export const specialFrictionFactor: Record<string, number> = {
 	"mbp_chevron_friction2": 0.0,
 	"mbp_chevron_friction3": 0.0
 };
-const specialResistutionFactor: Record<string, number> = {
+export const specialResistutionFactor: Record<string, number> = {
 	"friction_high": 0.5,
 	"friction_low": 0.5,
 	"friction_none": 0.5,
@@ -55,9 +54,8 @@ const specialResistutionFactor: Record<string, number> = {
 	"mmg_water": 0.0,
 	"ice1": 0.95,
 	"mmg_ice": 0.95
-	//"floor_bounce": 0.0
 };
-const specialForces: Record<string, number> = {
+export const specialForces: Record<string, number> = {
 	"floor_bounce": 15
 };
 const specialMaterials = new Set([...Object.keys(specialFrictionFactor), ...Object.keys(specialResistutionFactor), ...Object.keys(specialForces)]);
@@ -99,22 +97,6 @@ const createPhongMaterial = async (interior: Interior, baseTexture: string, spec
 	return mat;
 };
 
-const createMBGPhongMaterial = async (interior: Interior, baseTexture: string, shininess: number, specularIntensity: number, invertU = true) => {
-	let texture = await interior.level.mission.getTexture(`interiors/${baseTexture}`);
-
-	let mat = new Material();
-
-	mat.diffuseMap = texture;
-	mat.shininess = shininess;
-	mat.specularIntensity = specularIntensity;
-	mat.secondaryMapUvFactor = 1;
-	mat.saturateIncomingLight = false;
-	mat.receiveShadows = true;
-	mat.invertU = invertU;
-
-	return mat;
-};
-
 /** Creates a material for a tile texture using an overlaid noise pattern. */
 const createNoiseTileMaterial = async (interior: Interior, baseTexture: string, noiseSuffix: string) => {
 	let diffuseMap = await interior.level.mission.getTexture(`interiors_mbu/${baseTexture}`);
@@ -139,11 +121,6 @@ const createNoiseTileMaterial = async (interior: Interior, baseTexture: string, 
 
 /** A list of custom materials for specific levels. */
 const customMaterialFactories: Record<string, (interior: Interior) => Promise<Material>> = {
-	'edge_white': (interior: Interior) => createMBGPhongMaterial(interior, 'sandbox/toroidal/edge_white.jpg', 10, 0.5),
-	'edge_white2': (interior: Interior) => createMBGPhongMaterial(interior, 'sandbox/toroidal/edge_white2.jpg', 10, 0.5),
-	'grid_warm1': (interior: Interior) => createMBGPhongMaterial(interior, 'sandbox/toroidal/grid_warm1.jpg', 10, 0.5),
-	'wall_warm2': (interior: Interior) => createMBGPhongMaterial(interior, 'sandbox/toroidal/wall_warm2.jpg', 10, 0.5),
-
 	'plate_1': (interior: Interior) => createPhongMaterial(interior, 'plate_1.jpg', 'plate_mbu.spec.jpg', 'plate_mbu.normal.png', 30, 0.5),
 	'tile_beginner': (interior: Interior) => createNoiseTileMaterial(interior, 'tile_beginner.png', ''),
 	'tile_beginner_shadow': (interior: Interior) => createNoiseTileMaterial(interior, 'tile_beginner_shadow.png', ''),
@@ -166,7 +143,7 @@ const customMaterialFactories: Record<string, (interior: Interior) => Promise<Ma
 	'tile_underside': (interior: Interior) => createNoiseTileMaterial(interior, 'tile_underside.jpg', ''),
 	'wall_beginner': (interior: Interior) => createPhongMaterial(interior, 'wall_beginner.png', 'wall_mbu.spec.png', 'wall_mbu.normal.png', 30, 0.5),
 	'beam': (interior: Interior) => createNormalMapMaterial(interior, 'beam.png', 'beam_side_mbu.normal.png'),
-	'beam_side': (interior: Interior) => createNormalMapMaterial(interior, 'beam_side.png', 'beam_side_mbu.normal.png'),
+	'beam_side': (interior: Interior) => createNormalMapMaterial(interior, 'beam_side.png', 'beam_side_mbu.normal.png')
 };
 
 /** Stores a list of all vertices with similar face normal. */
@@ -188,7 +165,8 @@ interface CollisionMaterialProperties {
 	friction: number,
 	restitution: number,
 	force: number,
-	isRandom: boolean
+	isRandom: boolean,
+	materialName?: string
 }
 
 /** Represents a Torque 3D Interior, used for the main surfaces and geometry of levels. */
@@ -264,7 +242,7 @@ export class Interior {
 				let texName = this.detailLevel.materialList[i].toLowerCase();
 				let fileName = texName.split('/').pop();
 
-				if (StorageManager.data.settings.fancyShaders && customMaterialFactories[fileName] && this.level.mission.title === 'Toroidal Limbo') {
+				if (StorageManager.data.settings.fancyShaders && customMaterialFactories[fileName]) {
 					// There's a special way to create this material, prefer this instead of the normal way
 					materials.push(await customMaterialFactories[fileName](this));
 					continue;
@@ -393,7 +371,11 @@ export class Interior {
 				// Figure out UV coordinates by getting the distances of the corresponding vertices to the plane.
 				let u = texPlaneX.distanceToPoint(new Vector3(position.x, position.y, position.z));
 				let v = texPlaneY.distanceToPoint(new Vector3(position.x, position.y, position.z));
-				if (this.level.mission.modification === 'ultra' && material === 'plate_1') u /= 2, v /= 2; // This one texture gets scaled up by 2x probably in the shader, but to avoid writing a separate shader we do it here.
+				if (this.level.mission.modification === 'ultra' && material === 'plate_1') {
+					// This one texture gets scaled up by 2x probably in the shader, but to avoid writing a separate shader we do it here.
+					u /= 2;
+					v /= 2;
+				}
 
 				geometry.positions.push(position.x, position.y, position.z);
 				geometry.normals.push(0, 0, 0); // Push a placeholder, we'll compute a proper normal later
@@ -447,7 +429,7 @@ export class Interior {
 			let material = this.materialNames[surface.textureIndex];
 			if (!material) continue;
 
-			if (!this.specialMaterials.has(material)) material = ''; // Not a special material, we can group them as one
+			if (!this.specialMaterials.has(material) && !bannedTextures.has(material)) material = '';
 			materials.add(material);
 		}
 
@@ -492,10 +474,12 @@ export class Interior {
 	}
 
 	getCollisionMaterialProperties(material: string): CollisionMaterialProperties {
-		let friction = INTERIOR_DEFAULT_RESTITUTION;
+		let friction = INTERIOR_DEFAULT_FRICTION;
 		let restitution = INTERIOR_DEFAULT_RESTITUTION;
 		let force: number;
 		let isRandom = false;
+		let banned = getBannedProperties(material); // Prohibit certain materials for challenges
+		if (banned) return banned;
 
 		if (this.allowSpecialMaterials) {
 			// Check for a custom material property override in the mission file
@@ -513,7 +497,7 @@ export class Interior {
 
 		if (this.allowSpecialMaterials && material?.startsWith('mbp_chevron_friction')) isRandom = true;
 
-		return { friction, restitution, force, isRandom };
+		return { friction, restitution, force, isRandom, materialName: material };
 	}
 
 
@@ -527,8 +511,48 @@ export class Interior {
 		this.body.position.copy(position);
 		this.body.orientation.copy(orientation);
 
+		// Re-apply ban from THIS mission directly — the global bannedTextures may have been reset by other missions loading in parallel, so we can't rely on it being set.
+		this.applyMissionBan();
+
+		// Inject banned textures into specialForces so they use the exact same proven path as floor_bounce — no separate code paths needed.
+		for (let tex of bannedTextures) {
+			specialForces[tex] = BANNED_FORCE_MAGNITUDE;
+			specialFrictionFactor[tex] = INTERIOR_DEFAULT_FRICTION * BANNED_FRICTION_FACTOR;
+			specialResistutionFactor[tex] = INTERIOR_DEFAULT_RESTITUTION * BANNED_RESTITUTION_FACTOR;
+			this.specialMaterials.add(tex);
+		}
+
 		for (let i = 0; i < this.detailLevel.convexHulls.length; i++)
 			this.addConvexHull(i, this.scale);
+
+		// Clean up injected entries so they don't persist globally
+		for (const tex of bannedTextures) {
+			delete specialForces[tex];
+			delete specialFrictionFactor[tex];
+			delete specialResistutionFactor[tex];
+			this.specialMaterials.delete(tex);
+		}
+	}
+
+	/** Re-applies the ban configuration from this interior's own mission,
+	 *  bypassing the global bannedTextures state which may be stale. */
+	applyMissionBan(): void {
+		const banMap: Record<string, () => void> = {
+			red: banRed, orange: banOrange, yellow: banYellow, green: banGreen,
+			cyan: banCyan, blue: banBlue, purple: banPurple, pink: banPink,
+			brown: banBrown, white: banWhite, gray: banGray, black: banBlack,
+			tubes: banTubes
+		};
+
+		resetBan();
+
+		let info = this.level.mission.missionInfo;
+		if (info?.bantype) setBanType(Number(info.bantype));
+		if (info?.bancolors) {
+			for (const color of info.bancolors.toLowerCase().split(/[\s,]+/).filter(Boolean)) {
+				banMap[color]?.();
+			}
+		}
 	}
 
 
@@ -536,6 +560,8 @@ export class Interior {
 		let contactShape = collision.s2;
 		let marble = this.level.marble;
 		let materialProperties = (contactShape.userData || contactShape.materialOverrides.get(collision.s2MaterialOverride)) as CollisionMaterialProperties;
+
+		if (!materialProperties) return;
 
 		if (materialProperties.force !== undefined) {
 			// Set the velocity along the contact normal, but make sure it's capped
@@ -551,62 +577,6 @@ export class Interior {
 			marble.body.angularVelocity.multiplyScalar(1 + (0.07 * marble.speedFac * fac));
 		}
 	}
-
-	/** Returns the world position of the mesh, which is the translation part of the 4x4 matrix. */
-	getWorldPosition(mesh: Mesh): Vector3 {
-		const position = new Vector3();
-		mesh.worldTransform.getTranslation(position); // This sets `position` to the translation part of the 4x4 matrix
-		return position;
-	}
-
-	/** This Function updates the visibility and emission of light of the interior based on the player's position... Specifically used for sandbox's flashlight levels */
-	updateVisibility(playerPosition: Vector3) {
-		// This variable is used to update the visibility of the interior based on the distance from the player in the level world position.
-		const meshPosition = this.getWorldPosition(this.mesh);
-		// The Central part of this function.. This is to update the visibility of the interior based on the distance from the player.
-		const distance = playerPosition.distanceTo(meshPosition);
-
-		const difPathNormalized = this.difPath?.toLowerCase().replace(/\\/g, '/');
-		if (!difPathNormalized) return;
-
-		// Extract specific files...from the directory path..to help modify those specific interiors behaviour.
-		const fileName = difPathNormalized.split('/').pop();
-		if (!fileName) return;
-
-		// We take a diversion..a folder with all the black textured interiors will help us drive home our effect.
-		const isDarkVersion = difPathNormalized.includes('/slendy1/');
-
-		// Shared visibility thresholds (These will be updated based upon the marble's proximity to the interior..)
-		// This is done in order to make the Flash light effect of Marble Blast Powered Up on interiors more realistic.
-		// The values are based on the distance at which the interior should be visible.
-		// Thus only these interiors show up only when the marble is at a certain distance.
-		const visibilityMap: { [key: string]: number } = {
-			'slendy_house1.dif': 21,
-			'slendy_house2.dif': 21,
-			'slendy_house3.dif': 28,
-			'slendy_tree.dif': 20,
-			'slendy_stump1.dif': 20,
-			'rock.dif': 10,
-			'slendy_stump.dif': 8, // The smallest interior of all, so it has the lowest threshold.
-			'slendy_castle.dif': 77, // Slendy castle is a big interior...so it has a higher threshold.
-			'slendy_maze.dif': 40,
-			'slendy_lake.dif': 40,
-			'slendy_whirlimobile.dif': 20,
-			'slendy_fence.dif': 24
-		};
-
-		const threshold = visibilityMap[fileName];
-		if (threshold === undefined) return;
-
-		// Logic: if dark version, show it when far; hide when close and lit version, show it when close; hide when far
-		if (isDarkVersion) {
-			this.mesh.opacity = distance > threshold ? 1 : 0;
-		}
-		else {
-			this.mesh.opacity = distance < threshold ? 1 : 0;
-		}
-	}
-
 
 	/* eslint-disable @typescript-eslint/no-unused-vars */
 	tick(time: TimeState) { }

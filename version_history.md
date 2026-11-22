@@ -1,5 +1,15 @@
 # Version History
 
+## 2.6.12
+- The game now features all 25 Sandbox levels! The remaining 3 Sandbox levels are ported, along with tanks, propellors and even custom marbles.
+- The game now features all 73 Challenges. Good luck beating them!
+- Added 25 new marbles to the game, replacing the texture selector from the old build.
+- Added options to enable or disable the powerup effects, and to adjust the powerup and jump buttons in the HUD, directly from the options menu.
+- Added point lights to the renderer and shaders, which makes the Limbo Sandbox levels much more enjoyable to play.
+- Improved the Special Jump techniques, making the Sandbox levels somewhat more enjoyable to play.
+- Sandbox levels no longer have replays in the Leaderboards menu. Apologies, this had to be done because of server limitations. You can still have your local replays in the Best Times menu.
+- Improved most of the Sandbox levels to have the real feel. It's much closer to the original than before.
+
 ## 2.6.11
 - Added total support for the Custom PowerUp properties! Now any of the inventory powerUps Properties could be modified from a mis file. Checkout the [Mod-Api](https://github.com/Abhiguy/Marble-Blast-Powered-Up-Web/blob/master/modapi.md)
 

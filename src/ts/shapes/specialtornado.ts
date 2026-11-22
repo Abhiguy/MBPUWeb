@@ -16,15 +16,15 @@ export class SpecialTornado extends ForceShape {
 	deathSound = false;
 	startPosition: Vector3;
 	scaryfaceTimer: 0;
-	stingActive = false; // For the sting sound
-	stingSounds: AudioBuffer[] = []; // Sting sounds function
+	stingActive = false;
+	stingSounds: AudioBuffer[] = [];
 
 	constructor(el: MissionElementStaticShape) {
 		super();
 
 		this.addSphericalForce(8, -60);
 		this.addSphericalForce(3, 60);
-		this.addFieldForce(3, new Vector3(0, 0, 0)); // The upwards force is always in the same direction, which is fine considering tornados never appear with modified gravity.
+		this.addFieldForce(3, new Vector3(0, 0, 0));
 		this.chasePlayer = el._name === "ChasePlayer";
 	}
 
@@ -41,26 +41,27 @@ export class SpecialTornado extends ForceShape {
 
 
 	tick(time: TimeState, onlyVisual = false) {
+		if (this.level.paused) return;
 		super.tick(time, onlyVisual);
 
 		if (this.chasePlayer && this.level.marble && this.level.marble.body) {
 			let dir = this.level.marble.body.position.clone().sub(this.worldPosition).normalize();
-			let speed = 1.0;
+			let speed: number;
 			let dist = this.level.marble.body.position.distanceTo(this.worldPosition);
 			if (dist < 20.0) {
-				speed = 5.0; // Much more speed
+				speed = 5.0;
 			} else if (dist < 10.0) {
-				speed = 2.0; // Slow down as it gets closer
+				speed = 2.0;
 			}
 			else {
-				speed = 1; // Slow down as it is  further away
+				speed = 1;
 			}
 			// Game Over
 			if (!this.deathSound && dist < 1.0) {
 				this.level.audio.play('death.wav');
 				this.deathSound = true;
 				state.menu.hud.scaryface = true;
-				state.menu.hud.scaryFaceTimer = 60; // Pop the face for 60 frames or 1 sec
+				state.menu.hud.scaryFaceTimer = 60;
 				this.level.dead = true;
 				// Set off to void...
 				if (!this.level.levelFinished) {
@@ -92,18 +93,17 @@ export class SpecialTornado extends ForceShape {
 			});
 		}
 
-		// If marble finishes the level, dont play the sting sound
 		if (this.level.levelFinished) {
 			this.stingActive = false;
 			return;
 		}
 
-		// Sting logic 
-		const toTornado = this.worldPosition.clone().sub(this.level.marble.body.position).normalize();
-		const yawToTornado = Math.atan2(toTornado.y, toTornado.x);
-		const yawDiff = Math.abs(Util.angleDiff(yawToTornado, this.level.yaw));
+		// Sting
+		let toTornado = this.worldPosition.clone().sub(this.level.marble.body.position).normalize();
+		let yawToTornado = Math.atan2(toTornado.y, toTornado.x);
+		let yawDiff = Math.abs(Util.angleDiff(yawToTornado, this.level.yaw));
 
-		const isLookingAway = yawDiff > 1.2 || Math.abs(this.level.pitch) > 1.2;
+		let isLookingAway = yawDiff > 1.2 || Math.abs(this.level.pitch) > 1.2;
 
 		if (isLookingAway) {
 			if (!this.stingActive) {

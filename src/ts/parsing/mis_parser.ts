@@ -10,7 +10,11 @@ export interface MisFile {
 	marbleAttributes: Record<string, string>,
 	activatedPackages: string[],
 	materialProperties: Record<string, Record<string, number>>,
-	materialMappings: Record<string, string>
+	materialMappings: Record<string, string>,
+	/** Ban function calls found in the .mis file, e.g. ["banRed", "banBlue"]. */
+	bannedColors: string[],
+	/** The ban type passed to setBanType() in the .mis file, or null if not set. */
+	banType: number | null
 }
 
 export enum MissionElementType {
@@ -50,6 +54,7 @@ export interface MissionElementSimGroup extends MissionElementBase {
 
 /** Stores metadata about the mission. */
 export interface MissionElementScriptObject extends MissionElementBase {
+	parentmission: string;
 	_type: MissionElementType.ScriptObject,
 	time: string,
 	name: string,
@@ -73,9 +78,37 @@ export interface MissionElementScriptObject extends MissionElementBase {
 	requiregravity: string,
 	backwardclock: string,
 	competency: string,
+	flashlightlevel?: string,
+	lightstartradius?: string,
+	lightendradius?: string,
+    wrappingvector?: string,
 	qualifyscore: string;
 	blast: string,
 	useultramarble: string,
+	bancolors?: string,
+	bantype?: string,
+	disable?: string,
+	isometricview?: string,
+	camerayaw?: string,
+	camerafov?: string,
+	cameradistance?: string,
+	camerapitch?: string,
+	sailingseas?: string,
+	continuousjump?: string
+	maxgravityswaps?: string,
+	oneuse?: string,
+	counttrapdoors?: string,
+	invertyaw?: string,
+	randompaths?: string,
+	gravityrotation?: string,
+	groundhog?: string,
+	onehoop?: string,
+	gravityflipjump?: string,
+	reversesuperspeed?: string,
+	noaircontrol?: string,
+	onejump?: string,
+	camerazrot?: string,
+	qualifymintime?: string,
 
 	score: any,
 	score0: any,
@@ -168,6 +201,11 @@ export interface MissionElementStaticShape extends MissionElementBase {
 	my_y?: string;
 	my_z?: string;
 	myspeed?: string;
+	rotfactor?: string;
+	target?: string; // for buttons and gates
+	on?: string; // for buttons and gates
+	backwards?: string; // for button gates
+	weathertype?: string; // for AddWeather shapes
 }
 
 /** Represents an item. */
@@ -178,6 +216,7 @@ export interface MissionElementItem extends MissionElementBase {
 	my_y?: string;
 	my_z?: string;
 	myspeed?: string;
+	myspinning?: string;
 	_type: MissionElementType.Item,
 	position: string,
 	rotation: string,
@@ -322,6 +361,8 @@ const activatePackageRegEx = /activatePackage\((.+?)\);/g;
 const materialPropertyRegEx = /new MaterialProperty *\( *(.+?) *\)\s*{\s*((?:\w+ *= *(\d|\.)+;\s*)*)}/gi;
 const addMaterialMappingRegEx = /addMaterialMapping *\( *"(.+?)" *, *(.+?) *\)/gi;
 const keyValuePairRegEx = /([^\s]+?)\s*=\s*"(.*?)"\s*;/g;
+const banCallRegEx = /\b(ban(?:Red|Orange|Yellow|Green|Cyan|Blue|Purple|Pink|Brown|White|Gray|Black|Tubes)|resetBan)\s*\(\s*\);/g;
+const setBanTypeRegEx = /setBanType\s*\(\s*(\d+)\s*\);/g;
 
 /** A parser for .mis files, which hold mission information. */
 export class MisParser {
@@ -346,7 +387,7 @@ export class MisParser {
 		// Find all specified variables
 		this.variables = { "$usermods": '""' }; // Just make $usermods point to nothing
 		assignmentRegEx.lastIndex = 0;
-		let match: RegExpMatchArray = null;
+		let match: RegExpMatchArray;
 		while ((match = assignmentRegEx.exec(outsideText)) !== null) {
 			// Only use the first variable found. This is because the variable is likely to be modified later on with conditional statements and that's too complex to parse right now.
 			if (!this.variables[match[1]]) this.variables[match[1]] = match[2];
@@ -354,7 +395,6 @@ export class MisParser {
 
 		// Parse any custom marble attributes specified at the top of the file
 		let marbleAttributes: Record<string, string> = {};
-		match = null;
 		marbleAttributesRegEx.lastIndex = 0;
 		while ((match = marbleAttributesRegEx.exec(outsideText)) !== null) {
 			marbleAttributes[match[1]] = this.resolveExpression(match[2]);
@@ -362,14 +402,25 @@ export class MisParser {
 
 		// Parse any packages that the mission file activates
 		let activatedPackages: string[] = [];
-		match = null;
 		activatePackageRegEx.lastIndex = 0;
 		while ((match = activatePackageRegEx.exec(outsideText)) !== null) {
 			activatedPackages.push(this.resolveExpression(match[1]));
 		}
 
+		// Parse any ban calls specified at the top of the file
+		let bannedColors: string[] = [];
+		banCallRegEx.lastIndex = 0;
+		while ((match = banCallRegEx.exec(outsideText)) !== null) {
+			bannedColors.push(match[1]);
+		}
+
+		// Parse the setBanType call if present
+		let banType: number | null = null;
+		setBanTypeRegEx.lastIndex = 0;
+		let banTypeMatch = setBanTypeRegEx.exec(outsideText);
+		if (banTypeMatch) banType = Number(banTypeMatch[1]);
+
 		let materialProperties: Record<string, Record<string, number>> = {};
-		match = null;
 		materialPropertyRegEx.lastIndex = 0;
 		while ((match = materialPropertyRegEx.exec(outsideText)) !== null) {
 			let pairs = match[2].split(';').filter(x => x.trim()).map(x => x.split('=').map(x => x.trim()));
@@ -380,7 +431,6 @@ export class MisParser {
 		}
 
 		let materialMappings: Record<string, string> = {};
-		match = null;
 		addMaterialMappingRegEx.lastIndex = 0;
 		while ((match = addMaterialMappingRegEx.exec(outsideText)) !== null) {
 			materialMappings[match[1]] = match[2];
@@ -436,7 +486,9 @@ export class MisParser {
 			marbleAttributes,
 			activatedPackages,
 			materialProperties,
-			materialMappings
+			materialMappings,
+			bannedColors,
+			banType
 		};
 	}
 

@@ -35,6 +35,7 @@ export class SuperSpeed extends PowerUp {
 		let quat2 = new Quaternion();
 		quat2.setFromUnitVectors(this.level.currentUp, marble.lastContactNormal); // Determine the necessary rotation to rotate the up vector to the contact normal.
 		movementVector.applyQuaternion(quat2); // ...then rotate the movement bonus vector by that amount.
+		if (level.mission.missionInfo?.reversesuperspeed === "1") movementVector.negate(); // Monster Nope: super speed pushes backwards instead of forwards
 
 		if (this.level.marble.doubler) {
 			// Doubled strenght of superSpeed for picking doubler
@@ -46,6 +47,7 @@ export class SuperSpeed extends PowerUp {
 		}
 		this.level.audio.play(this.sounds[1]);
 		this.level.particles.createEmitter(superSpeedParticleOptions, null, () => marble.body.position.clone());
+		marble.enableSuperSpeedEffect();
 
 		this.level.deselectPowerUp();
 	}

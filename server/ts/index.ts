@@ -1,25 +1,21 @@
 import * as http from 'http';
 import * as path from 'path';
 import * as url from 'url';
-import * as Database from 'better-sqlite3';
-import * as fs from 'fs-extra';
-import * as serveStatic_ from 'serve-static';
+import { DatabaseSync, backup } from 'node:sqlite';
+import * as fs from 'fs';
+import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
-
-// Do some hackery to satisfy rollup
-const serveStatic = serveStatic_;
-
 import { shared } from './shared';
 import { getDirectoryStructure, getVersionHistory, logUserError, registerActivity, registerLevelStatistics } from './misc';
 import { getLeaderboard, submitScores, getWorldRecordSheet, getWorldRecordReplay, getLeaderboardForMarbleland } from './leaderboard';
 import { getCustomLevelList, getCustomLevelResource, periodicallyUpdateCustomLevelList } from './customs';
 
-let db: Database.Database = null;
+let db: DatabaseSync = null;
 const doBackup = false;
 
 /** Sets up the database and creates tables, indices and prepared statements. */
 const setupDb = () => {
-	db = new Database(path.join(__dirname, 'storage', 'main.db'));
+	db = new DatabaseSync(path.join(__dirname, 'storage', 'main.db'));
 	shared.db = db;
 
 	db.exec(`
@@ -47,7 +43,7 @@ const setupDb = () => {
 			user_random_id VARCHAR(255)
 		);
 	`);
-	db.pragma('journal_mode = WAL'); // Significantly improves performance
+	db.exec('PRAGMA journal_mode = WAL;'); // Significantly improves performance
 
 	// Prepare the statements now for later use
 
@@ -106,7 +102,7 @@ const setupDb = () => {
 		)
 		GROUP BY s1.mission, s1.username;
 	`);
-	shared.getLatestTimestampStatement = db.prepare(`SELECT MAX(timestamp) FROM score;`);
+	shared.getLatestTimestampStatement = db.prepare(`SELECT MAX(timestamp) as latest_timestamp FROM score;`);
 	shared.insertLevelStatistics = db.prepare(`
 		INSERT INTO level_statistics (mission, start_time, tries, finishes, out_of_bounds_count, time_paused, end_time, user_random_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -122,8 +118,8 @@ const backupStuff = () => {
 	let yyyymmdd = new Date().toISOString().split('T')[0];
 	let fileName = `main_backup_${yyyymmdd}.db`;
 
-	db.pragma('wal_checkpoint(RESTART)'); // First, checkpoint the WAL to the database so that its changes get backed up too
-	db.backup(path.join(__dirname, 'storage', 'backups', fileName))
+	db.exec('PRAGMA wal_checkpoint(RESTART);'); // First, checkpoint the WAL to the database so that its changes get backed up too
+	backup(db, path.join(__dirname, 'storage', 'backups', fileName))
 		.then(() => console.log(`Successfully created database backup file ${fileName}.`))
 		.catch((err) => console.error("Backup failed: ", err));
 };
@@ -198,10 +194,10 @@ const init = () => {
 	console.log("Starting...");
 
 	// Ensure certain directories and files exist
-	fs.ensureDirSync(path.join(__dirname, 'storage'));
-	fs.ensureDirSync(path.join(__dirname, 'storage', 'customs'));
-	fs.ensureDirSync(path.join(__dirname, 'storage', 'backups'));
-	fs.ensureFileSync(path.join(__dirname, 'storage', 'logs', 'user_errors.log'));
+	fs.mkdirSync(path.join(__dirname, 'storage', 'customs'), { recursive: true });
+	fs.mkdirSync(path.join(__dirname, 'storage', 'backups'), { recursive: true });
+	fs.mkdirSync(path.join(__dirname, 'storage', 'logs'), { recursive: true });
+	fs.appendFileSync(path.join(__dirname, 'storage', 'logs', 'user_errors.log'), '');
 
 	shared.customLevelListPath = path.join(__dirname, 'storage', 'customs.json');
 	if (!fs.existsSync(shared.customLevelListPath)) fs.writeFileSync(shared.customLevelListPath, '[]');

@@ -37,12 +37,9 @@ export class MusicPad extends Shape {
 	onMarbleContact(collision: Collision) {
 		if (!collision || !this.canUse) return;
 
-		let padIndex = 0;
-
 		// Touching Each Pad will Pop a Sound and a index is noted.
-
-		this.level.audio.play(this.sounds[this.padIndex - 1]);
-		padIndex = this.padIndex;
+		let padIndex = this.padIndex;
+		this.level.audio.play(this.sounds[padIndex - 1]);
 
 		// Add pad index to sequence
 		this.level.musicCodeSequence.push(padIndex);

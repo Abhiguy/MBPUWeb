@@ -7,7 +7,7 @@ import { Texture } from "./rendering/texture";
 import { Vector3 } from "./math/vector3";
 import { Matrix4 } from "./math/matrix4";
 
-const PATHS = ['particles/bubble.png', 'particles/saturn.png', 'particles/smoke.png', 'particles/spark.png', 'particles/star.png', 'particles/twirl.png', 'particles/rain.png', 'particles/snow.png'];
+const PATHS = ['particles/bubble.png', 'particles/saturn.png', 'particles/smoke.png', 'particles/spark.png', 'particles/star.png', 'particles/twirl.png', 'particles/rain.png', 'particles/snow.png', 'particles/lightFalloffMono.png', 'particles/whiteAlpha255.png', 'particles/whiteNoAlpha.png'];
 const MAX_PARTICLES_PER_GROUP = 2 ** 14;
 
 /** The options for a single particle. */
@@ -22,6 +22,8 @@ interface ParticleOptions {
 	lifetime: number,
 	lifetimeVariance: number,
 	dragCoefficient: number,
+	gravityCoefficient?: number,
+	flatBillboard?: boolean,
 	/** Acceleration along the velocity vector. */
 	acceleration: number,
 	colors: RGBAColor[],
@@ -44,6 +46,14 @@ export interface ParticleEmitterOptions {
 	inheritedVelFactor: number,
 	/** Computes a spawn offset for each particle. */
 	spawnOffset?: () => Vector3,
+	/**
+	 * Minimum/maximum cone angle (in degrees) that particles are ejected within, measured from
+	 * the level's current up vector: 0° points straight up, 180° points straight down. This
+	 * mirrors Torque's ParticleEmitterData thetaMin/thetaMax fields. Both default to 0/180 (the
+	 * full sphere) when omitted, matching the old fully-random-direction behavior.
+	 */
+	thetaMin?: number,
+	thetaMax?: number,
 	particleOptions: ParticleOptions
 }
 
@@ -53,11 +63,15 @@ interface ParticleGroup {
 	vertexBuffer: VertexBuffer,
 	uniforms: {
 		acceleration: number,
+		gravityCoefficient: number,
+		gravityDir: Float32Array,
+		flatBillboard: number,
 		spinSpeed: number,
 		dragCoefficient: number,
 		times: Float32Array,
 		sizes: Float32Array,
-		colors: Float32Array
+		colors: Float32Array,
+		emitterCenter: Float32Array
 	}
 }
 
@@ -81,6 +95,40 @@ const indices: number[] = [];
 for (let i = 0; i < MAX_PARTICLES_PER_GROUP; i++) indices.push(
 	4 * i + 0, 4 * i + 1, 4 * i + 2, 4 * i + 0, 4 * i + 2, 4 * i + 3
 );
+
+/**
+ * Samples a random unit direction uniformly (by solid angle) within the cone [thetaMin, thetaMax]
+ * (in degrees) around `axis`, where 0° points along `axis` and 180° points directly opposite it.
+ * This is a direct port of Torque's ParticleEmitterData thetaMin/thetaMax cone emission, which the
+ * previous fully-random-on-sphere direction didn't support at all.
+ *
+ * `axis` is normalized internally — callers must NOT assume it's already unit length. In particular
+ * `level.currentUp` is NOT guaranteed to be unit (see the explicit .normalize() in render() below),
+ * and skipping this normalization here previously skewed/collapsed the direction distribution for
+ * every emitter in the game, not just cone-restricted ones.
+ */
+function randomDirectionInCone(axis: Vector3, thetaMinDeg: number, thetaMaxDeg: number) {
+	let axisN = axis.clone().normalize();
+	// Build an orthonormal basis (tangent, bitangent, axisN) around the axis.
+	let reference = Math.abs(axisN.x) < 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+	let tangent = axisN.clone().cross(reference).normalize();
+	let bitangent = axisN.clone().cross(tangent); // Already unit length: axisN and tangent are orthonormal
+
+	let thetaMin = Util.degToRad(thetaMinDeg);
+	let thetaMax = Util.degToRad(thetaMaxDeg);
+
+	// Sample cosTheta uniformly (not theta itself) so the result is uniform by solid angle within the cone,
+	// avoiding the clustering near the cone's axis that linear theta sampling would produce.
+	let cosTheta = Util.lerp(Math.cos(thetaMin), Math.cos(thetaMax), Math.random());
+	let sinTheta = Math.sqrt(Math.max(0, 1 - cosTheta * cosTheta));
+	let phi = Math.random() * Math.PI * 2;
+
+	let x = sinTheta * Math.cos(phi);
+	let y = sinTheta * Math.sin(phi);
+	let z = cosTheta;
+
+	return tangent.multiplyScalar(x).add(bitangent.multiplyScalar(y)).add(axisN.multiplyScalar(z));
+}
 
 /** Manages emitters and particles. */
 export class ParticleManager {
@@ -161,11 +209,15 @@ export class ParticleManager {
 		// Set all the values that are true for every particle of this type
 		let uniforms: ParticleGroup['uniforms'] = {
 			acceleration: o.acceleration,
+			gravityCoefficient: o.gravityCoefficient ?? 0,
+			gravityDir: new Float32Array([0, 0, -1]),
+			flatBillboard: o.flatBillboard ? 1 : 0,
 			spinSpeed: Util.degToRad(o.spinSpeed),
 			dragCoefficient: o.dragCoefficient,
 			times: new Float32Array([o.times[0] ?? Infinity, o.times[1] ?? Infinity, o.times[2] ?? Infinity, o.times[3] ?? Infinity]),
 			sizes: new Float32Array([o.sizes[0] || 0, o.sizes[1] || 0, o.sizes[2] || 0, o.sizes[3] || 0]),
-			colors: new Float32Array(colorsMatrix.elements)
+			colors: new Float32Array(colorsMatrix.elements),
+			emitterCenter: new Float32Array([0, 0, 0])
 		};
 
 		let group: ParticleGroup = {
@@ -201,6 +253,13 @@ export class ParticleManager {
 		for (let i = 0; i < this.emitters.length; i++) {
 			let emitter = this.emitters[i];
 			if (emitter.getPos) emitter.setPos(emitter.getPos(), time);
+			// Sync emitterCenter to GPU group every tick for relative emitters
+			if (emitter.isRelative) {
+				let group = this.getParticleGroup(emitter.o.particleOptions);
+				group.uniforms.emitterCenter[0] = emitter.emitterCenter.x;
+				group.uniforms.emitterCenter[1] = emitter.emitterCenter.y;
+				group.uniforms.emitterCenter[2] = emitter.emitterCenter.z;
+			}
 			let alive = emitter.tick(time);
 			if (!alive) this.emitters.splice(i--, 1);
 		}
@@ -209,8 +268,18 @@ export class ParticleManager {
 	render(time: number) {
 		this.currentRenderTime = time;
 
+		// The direction particles fall in should always match the level's current
+		// gravity, not a fixed world axis — this keeps trails falling correctly
+		// under inverted or redirected gravity instead of always falling toward
+		// world -Z.
+		let down = this.level.currentUp.clone().normalize().negate();
+
 		// Update all the particle groups
 		for (let [, group] of this.particleGroups) {
+			group.uniforms.gravityDir[0] = down.x;
+			group.uniforms.gravityDir[1] = down.y;
+			group.uniforms.gravityDir[2] = down.z;
+
 			for (let i = 0; i < group.particles.length; i++) {
 				let particle = group.particles[i];
 				let dead = !particle.isAlive(time);
@@ -250,6 +319,8 @@ export class ParticleEmitter {
 	currPos: Vector3;
 	currPosTime: number;
 	vel = new Vector3();
+	isRelative = false;
+	emitterCenter = new Vector3(0, 0, 0);
 	getPos: () => Vector3;
 	spawnSphereSquish: Vector3;
 
@@ -285,14 +356,16 @@ export class ParticleEmitter {
 		this.lastEmitTime = time;
 		this.currentWaitPeriod = this.o.ejectionPeriod;
 
-		let pos = this.getPosAtTime(time).clone();
+		let pos = this.isRelative ? new Vector3(0, 0, 0) : this.getPosAtTime(time).clone();
 		if (this.o.spawnOffset) pos.add(this.o.spawnOffset()); // Call the spawnOffset function if it's there
 
-		// Generate a point uniformly chosen on a sphere's surface.
-		let randomPointOnSphere = new Vector3().randomDirection();
-		randomPointOnSphere.multiply(this.spawnSphereSquish);
+		// Generate a direction within the emitter's thetaMin/thetaMax cone (measured from the level's
+		// up vector), matching Torque's ParticleEmitterData cone emission. Omitted thetaMin/thetaMax
+		// default to 0/180, i.e. the full sphere, preserving old behavior for emitters that don't set them.
+		let randomDir = randomDirectionInCone(this.manager.level.currentUp, this.o.thetaMin ?? 0, this.o.thetaMax ?? 180);
+		randomDir.multiply(this.spawnSphereSquish);
 		// Compute the total velocity
-		let vel = this.vel.clone().multiplyScalar(this.o.inheritedVelFactor).add(randomPointOnSphere.multiplyScalar(this.o.ejectionVelocity + this.o.velocityVariance * (Math.random() * 2 - 1))).add(this.o.ambientVelocity);
+		let vel = this.vel.clone().multiplyScalar(this.o.inheritedVelFactor).add(randomDir.multiplyScalar(this.o.ejectionVelocity + this.o.velocityVariance * (Math.random() * 2 - 1))).add(this.o.ambientVelocity);
 
 		let group = this.manager.getParticleGroup(this.o.particleOptions);
 		if (group.particles.length === MAX_PARTICLES_PER_GROUP) return;
@@ -467,14 +540,14 @@ export const particleNodeEmittersEmitterOptions = {
 };
 
 export const RainLocal = {
-	ejectionPeriod: 0.7,
-	ambientVelocity: new Vector3(0, 0, -127),
+	ejectionPeriod: 0.9,
+	ambientVelocity: new Vector3(0, 0, -9),
 	ejectionVelocity: 0,
 	velocityVariance: 0,
 	emitterLifetime: Infinity,
 	spawnOffset() {
 		let randomPointInCircle = Util.randomPointInUnitCircle();
-		return new Vector3(randomPointInCircle.x * 37, randomPointInCircle.y * 37, Math.random() * 0.4 - 0.5);
+		return new Vector3(randomPointInCircle.x * 4, randomPointInCircle.y * 4, Math.random() * 0.4 - 0.5);
 	},
 	inheritedVelFactor: 0,
 	particleOptions: {
@@ -483,25 +556,25 @@ export const RainLocal = {
 		spinSpeed: 0,
 		spinRandomMin: 0,
 		spinRandomMax: 0,
-		lifetime: 10000,
+		lifetime: 2500,
 		lifetimeVariance: 200,
 		dragCoefficient: 0,
 		acceleration: 0,
 		colors: [{ r: 0.4, g: 0.4, b: 0.8, a: 1 }, { r: 0.4, g: 0.4, b: 0.8, a: 1 }, { r: 0.4, g: 0.4, b: 0.8, a: 1 }],
-		sizes: [3, 4.5, 6],
+		sizes: [0.05, 0.425, 0.55],
 		times: [0, 0.2, 1]
 	}
 };
 
 export const BubbleLocal = {
-	ejectionPeriod: 0.62,//0.65
-	ambientVelocity: new Vector3(0, 0, 82),
+	ejectionPeriod: 2.8,
+	ambientVelocity: new Vector3(0, 0, 3.5),
 	ejectionVelocity: 0,
 	velocityVariance: 0,
 	emitterLifetime: Infinity,
 	spawnOffset() {
 		let randomPointInCircle = Util.randomPointInUnitCircle();
-		return new Vector3(randomPointInCircle.x * 60, randomPointInCircle.y * 60, Math.random() * 0.4 - 0.5);
+		return new Vector3(randomPointInCircle.x * 6, randomPointInCircle.y * 6, Math.random() * 0.4 - 0.5);
 	},
 	inheritedVelFactor: 0,
 	particleOptions: {
@@ -510,12 +583,12 @@ export const BubbleLocal = {
 		spinSpeed: 0,
 		spinRandomMin: 0,
 		spinRandomMax: 0,
-		lifetime: 10000,
+		lifetime: 4000,
 		lifetimeVariance: 200,
 		dragCoefficient: 0,
 		acceleration: 0,
-		colors: [{ r: 0.4, g: 0.4, b: 0.8, a: 1 }, { r: 0.4, g: 0.4, b: 0.8, a: 1 }, { r: 0.4, g: 0.4, b: 0.8, a: 1 }],
-		sizes: [0.4, 1.25, 0.5],
+		colors: [{ r: 0.25, g: 0.25, b: 0.75, a: 0.5 }, { r: 0.25, g: 0.25, b: 0.75, a: 0.5 }, { r: 0.25, g: 0.25, b: 0.75, a: 0.5 }],
+		sizes: [0.275, 0.4, 0.65],
 		times: [0, 0.2, 1]
 	}
 };

@@ -12,6 +12,8 @@ export class MustChangeTrigger extends Trigger {
 	}
 
 	onMarbleEnter() {
+		if (this.level.hoopsLocked) return; // Hoop.: a hoop was already used this attempt
+
 		let time = this.level.timeState;
 
 		this.interior.setTargetTime(time, MisParser.parseNumber(this.element.targettime));
@@ -27,5 +29,7 @@ export class MustChangeTrigger extends Trigger {
 		}
 
 		this.level.replay.recordMarbleEnter(this);
+
+		if (this.level.isOneHoop) this.level.hoopsLocked = true; // Hoop.: lock every hoop after the first one fires
 	}
 }

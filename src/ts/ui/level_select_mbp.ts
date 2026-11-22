@@ -245,7 +245,7 @@ export class MbpLevelSelect extends LevelSelect {
 		let arr = this.currentMissionArray;
 		state.menu.backgroundImage.src =
 			(MissionLibrary.getModification(arr) === 'gold') ? (state.menu as MbpMenu).mbgBg :
-				(MissionLibrary.getModification(arr) === 'ultra') ? (state.menu as MbpMenu).mbuBg :
-					(state.menu as MbpMenu).mbpBg;
+			(MissionLibrary.getModification(arr) === 'ultra') ? (state.menu as MbpMenu).mbuBg :
+			(state.menu as MbpMenu).mbpBg;
 	}
 }

@@ -2,7 +2,6 @@ import * as http from 'http';
 import { promisify } from 'util';
 import * as zlib from 'zlib';
 import * as url from 'url';
-import fetch from 'node-fetch';
 
 import { shared } from './shared';
 import { compareSemver, escapeDiscord, secondsToTimeString, uppercaseFirstLetter } from './util';
@@ -28,7 +27,7 @@ export const getLeaderboard = async (res: http.ServerResponse, body: string) => 
 	let response: Record<string, [string, number, boolean][]> = {};
 
 	for (let mission of options.missions) {
-		let rows: ScoreRow[] = shared.getLeaderboardForMissionStatement.all(mission);
+		let rows = shared.getLeaderboardForMissionStatement.all(mission) as ScoreRow[];
 		response[mission] = rows.map(x => [x.username.slice(0, 16), x.time, !!x.has_wrec]);
 	}
 
@@ -59,7 +58,7 @@ export const getLeaderboardForMarbleland = async (res: http.ServerResponse, url:
 			mission = 'mbu/' + mission;
 		}
 
-		rows = shared.getLeaderboardForMissionStatement.all(mission);
+		rows = shared.getLeaderboardForMissionStatement.all(mission) as ScoreRow[];
 	}
 
 	let response = {
@@ -111,8 +110,8 @@ export const submitScores = async (res: http.ServerResponse, body: string) => {
 
 	// Loop over all new scores
 	for (let { missionPath, score, id } of bestTimes) {
-		score[0] = score[0].slice(0, 16); 
-		let oldTopScore: ScoreRow = shared.getTopScoreStatement.get(missionPath);
+		score[0] = score[0].slice(0, 16);
+		let oldTopScore = shared.getTopScoreStatement.get(missionPath) as ScoreRow;
 		let isTopScore = !oldTopScore || oldTopScore.time > score[1];
 
 		if (isTopScore && !data.replays[id]) continue; // Top scores NEED a replay
@@ -217,7 +216,7 @@ const sendNewScores = (res: http.ServerResponse, timestamp: number) => {
 
 	if (timestamp || timestamp === 0) {
 		// Send all new scores since that that last timestamp; let the client insert them at the right spot
-		let newScores: ScoreRow[] = shared.getNewerTopScoresStatement.all(timestamp);
+		let newScores = shared.getNewerTopScoresStatement.all(timestamp) as ScoreRow[];
 		for (let score of newScores) {
 			if (!result[score.mission]) result[score.mission] = [];
 			result[score.mission].push([score.username.slice(0, 16), score.time, !!score.has_wrec]);
@@ -225,7 +224,7 @@ const sendNewScores = (res: http.ServerResponse, timestamp: number) => {
 	}
 
 	// Also get the timestamp of the score with the highest timestamp
-	let latestTimestamp: number = shared.getLatestTimestampStatement.pluck().get();
+	let latestTimestamp = shared.getLatestTimestampStatement.get().latest_timestamp as number;
 	if (!latestTimestamp) latestTimestamp = 0;
 
 	let stringified = JSON.stringify({
@@ -260,7 +259,7 @@ export const getWorldRecordSheet = async (res: http.ServerResponse) => {
 		}
 
 		// Get the top score for this mission
-		let topScore: ScoreRow = shared.getTopScoreStatement.get(missionPath);
+		let topScore = shared.getTopScoreStatement.get(missionPath) as ScoreRow;
 		if (!topScore) topScore = {
 			time: 99 * 60 * 1000 + 59 * 1000 + 999,
 			username: 'Nardo Polo'
@@ -289,7 +288,7 @@ export const getWorldRecordReplay = async (res: http.ServerResponse, urlObject: 
 		res.end();
 	}
 
-	let row = shared.getTopScoreWrecStatement.get(missionPath) as { wrec: Buffer };
+	let row = shared.getTopScoreWrecStatement.get(missionPath) as { wrec: Uint8Array };
 	if (!row) {
 		res.writeHead(400);
 		res.end('400');

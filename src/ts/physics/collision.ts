@@ -30,7 +30,7 @@ export class Collision {
 	friction: number;
 	/** The combined restitution of this collision. */
 	restitution: number;
-	
+
 	s1Friction: number;
 	s1Restitution: number;
 	s2Friction: number;

@@ -245,13 +245,12 @@ new SimGroup(MissionGroup) {
       polyhedron = "0.0000000 0.0000000 0.0000000 1.0000000 0.0000000 0.0000000 0.0000000 -1.0000000 0.0000000 0.0000000 0.0000000 1.0000000";
          text = "Air movement is a lot easier underwater.";
    };
-   new ParticleEmitterNode() {
-      position = "-7.75 -20.5656 354.5";
+   new StaticShape() {
+      position = "-26.0333 -34.458 5.51656";
       rotation = "1 0 0 0";
       scale = "1 1 1";
-      dataBlock = "FireWorkNode";
-      emitter = "BubbleLocalEmitter";
-      velocity = "1";
+      dataBlock = "AddWeather";
+      weatherType = "Bubbles";
    };
    new Item() {
       position = "-8.53077 0.278519 518.402";

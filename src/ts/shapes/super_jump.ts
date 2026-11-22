@@ -33,6 +33,7 @@ export class SuperJump extends PowerUp {
 		}
 		this.level.audio.play(this.sounds[1]);
 		this.level.particles.createEmitter(superJumpParticleOptions, null, () => marble.body.position.clone());
+		marble.enableSuperJumpEffect();
 
 		this.level.deselectPowerUp();
 	}

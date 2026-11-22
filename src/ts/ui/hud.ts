@@ -1,8 +1,6 @@
 import { actionButtonContainer, blastButton, freeLookButton, JOYSTICK_HANDLE_SIZE_FACTOR, jumpButton, movementJoystick, movementJoystickHandle, pauseButton, restartButton, setUseEnabled, useButton } from "../input";
-import { GO_TIME, MAX_TIME, PHYSICS_TICK_RATE, TimeState } from "../level";
-import { Vector2 } from "../math/vector2";
+import { MAX_TIME, PHYSICS_TICK_RATE, TimeState } from "../level";
 import { ResourceManager } from "../resources";
-import { StartPad } from "../shapes/start_pad";
 import { state } from "../state";
 import { StorageManager } from "../storage";
 import { RGBAColor, Util } from "../util";
@@ -27,6 +25,8 @@ const numberSources = {
 	"-": "dash.png"
 };
 const keybindRegex = /<func:bind (\w+)>/g;
+// Not a frame rate cap option, but common enough to snap to
+const SNAPPED_FRAME_RATES = [...FRAME_RATE_OPTIONS, 72];
 
 export abstract class Hud {
 	menu: Menu;
@@ -88,12 +88,6 @@ export abstract class Hud {
 		} else {
 			this.fpsMeter.classList.add('hidden');
 		}
-
-		if (state.level.mission.hasBlast) {
-			imagePathsToLoad.push(...["blastbar.png", "blastbar_charged.png", "blastbar_bargreen.png", "blastbar_bargray.png"].map(x => "./assets/ui_mbp/game/" + x));
-		}
-
-		imagePathsToLoad.push(...["./assets/ui_mbp/game/transparency.png"]);
 
 		await ResourceManager.loadImages(imagePathsToLoad);
 
@@ -170,12 +164,6 @@ export abstract class Hud {
 
 		ctx.clearRect(0, 0, width, height);
 
-		// Draw the clock background
-		if (this.showClockBackground) {
-			let clockBackground = ResourceManager.getImageFromCache('./assets/ui_mbp/game/transparency.png');
-			ctx.drawImage(clockBackground, Math.floor(width / 2 - 220 / 2 + 3), -10, 220, 79);
-		}
-
 		// This might seem a bit strange, but the time we display is actually a few milliseconds in the PAST (unless the user is currently in TT or has finished), for the reason that time was able to go backwards upon finishing or collecting TTs due to CCD time correction. That felt wrong, so we accept this inaccuracy in displaying time for now.
 		let timeToDisplay = timeState.gameplayClock;
 		if (level.finishTime) timeToDisplay = level.finishTime.gameplayClock;
@@ -213,7 +201,7 @@ export abstract class Hud {
 			}
 		}
 		// Draw the clock
-		this.drawNumbers(Util.secondsToTimeString(timeToDisplay / 1000), width / 2, 0, true, this.determineClockColor(timeToDisplay));
+		this.drawNumbers(Util.secondsToTimeString(timeToDisplay / 1000), width / 2, 0, true);
 
 		const mainClockY = 0;
 		const digitHeight = 43; // Height of your number images
@@ -378,40 +366,6 @@ export abstract class Hud {
 			ctx.shadowOffsetY = 0;
 			ctx.globalAlpha = 1;
 		}
-
-		// Draw the blast meter
-		if (level.mission.hasBlast) {
-			let amount = level.blastAmount;
-
-			let offset = new Vector2(7, 34);
-			if (Util.isTouchDevice) offset.set(20, 47); // To make it visible with rounded corners
-
-			let blastMeterFillSrc = `./assets/ui_mbp/game/blastbar_bar${(amount >= 0.2) ? 'green' : 'gray'}.png`;
-			let fillImage = ResourceManager.getImageFromCache(blastMeterFillSrc);
-			ctx.drawImage(fillImage, offset.x + 5, height - offset.y + 5, Util.clamp(amount, 0, 1) * 109, 17);
-
-			let bodyImage = ResourceManager.getImageFromCache((amount > 1) ? './assets/ui_mbp/game/blastbar_charged.png' : './assets/ui_mbp/game/blastbar.png');
-			ctx.drawImage(bodyImage, offset.x, height - offset.y);
-		}
-	}
-
-	determineClockColor(timeToDisplay: number) {
-		if (state.modification === 'gold') return;
-		const level = state.level;
-
-		if (level.finishTime) return 'green'; // Even if not qualified
-		if (level.timeState.currentAttemptTime < GO_TIME || level.currentTimeTravelBonus > 0) return 'green';
-		if (timeToDisplay >= level.mission.qualifyTime) return 'red';
-
-		if (level.timeState.currentAttemptTime >= GO_TIME && isFinite(level.mission.qualifyTime) && state.modification === 'platinum') {
-			// Create the flashing effect
-			let alarmStart = level.mission.computeAlarmStartTime();
-			let elapsed = timeToDisplay - alarmStart;
-			if (elapsed < 0) return;
-			if (Math.floor(elapsed / 1000) % 2 === 0) return 'red';
-		}
-
-		return; // Default yellow
 	}
 
 	drawNumbers(string: string, x: number, y: number, isClock: boolean, specialColor?: 'red' | 'green') {
@@ -553,11 +507,13 @@ export abstract class Hud {
 		while (this.frameTimeStore.length && this.frameTimeStore[0] + 1000 <= now) this.frameTimeStore.shift();
 
 		let value = this.frameTimeStore.length;
-		value /= Math.min(1, state.level.timeState.timeSinceLoad / 1000 ?? 1); // Hack to make it reach the final frame rate faster
+		// @ts-expect-error Deliberately constant
+		value /= Math.min(1, state.level.timeState.timeSinceLoad / 1000 ?? 1); // eslint-disable-line no-constant-binary-expression -- Hack to make it reach the final frame rate faster
 		value = Math.floor(value);
-		let settingsTarget = FRAME_RATE_OPTIONS[StorageManager.data.settings.frameRateCap];
-		if (value === 59 || value === 119 || value === 143 || value === 239 || value === settingsTarget - 1) value++; // Snap to the most common frame rates
-		if (value === 61 || value === 121 || value === 145 || value === 241 || value === settingsTarget + 1) value--;
+		let similarValue = SNAPPED_FRAME_RATES.find(x => Math.abs(x - value) <= 1);
+		if (similarValue !== undefined) {
+			value = similarValue; // Snap to the most common frame rates
+		}
 
 		this.fpsMeterValue.textContent = 'FPS: ' + value;
 	}

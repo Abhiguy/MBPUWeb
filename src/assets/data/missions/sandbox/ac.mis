@@ -1667,13 +1667,6 @@ new SimGroup(MissionGroup) {
       dataBlock = "OutOfBoundsTrigger";
       polyhedron = "0.0000000 0.0000000 0.0000000 1.0000000 0.0000000 0.0000000 0.0000000 -1.0000000 0.0000000 0.0000000 0.0000000 1.0000000";
    };
-   new TSStatic() {
-      position = "-6.95914 -28.8399 36.1183";
-      rotation = "1 0 0 0";
-      scale = "12.1569 9.89698 0.938002";
-      dataBlock = "InBoundsTrigger";
-      shapeName = "~/data/shapes/colmesh.dts";
-   };
    new SimGroup(ac_door_group1) {
 
       new SimGroup(MustChange_g) {

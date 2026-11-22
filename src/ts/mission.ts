@@ -6,6 +6,8 @@ import { state } from "./state";
 import hxDif from './parsing/hx_dif';
 import { IflFile, IflParser } from "./parsing/ifl_parser";
 import { Level } from "./level";
+import { Vector3 } from "./math/vector3";
+import { resetBan, setBanType, banRed, banOrange, banYellow, banGreen, banCyan, banBlue, banPurple, banPink, banBrown, banWhite, banGray, banBlack, banTubes } from './banlist';
 
 /** A Marbleland level entry. */
 export interface CustomLevelInfo {
@@ -64,7 +66,7 @@ export class Mission {
 	goldTime = -Infinity; // Doubles as platinum time
 	goldScore: number;
 	ultimateTime = -Infinity;
-	type: 'beginner' | 'intermediate' | 'advanced' | 'expert' | 'custom' | 'sandbox' = 'custom';
+	type: 'beginner' | 'intermediate' | 'advanced' | 'expert' | 'custom' | 'sandbox' | 'challenge' = 'custom';
 	modification: 'gold' | 'platinum' | 'ultra';
 	zipDirectory: JSZip = null;
 	fileToBlobPromises = new Map<JSZip['files'][number], Promise<Blob>>();
@@ -77,8 +79,15 @@ export class Mission {
 	quietTornados = false;
 	requireGravity = false;
 	competency = false;
+	flashLightLevel = false; // Gee..The Most Important primitive for Sandbox Levels..
+	lightStartRadius: number; // Important primitive..
+	lightEndRadius: number;
+	wrappingVector: Vector3; // Wrapping grid size for infinite space
 	backwardClock = false;
+	maxGravitySwaps = Infinity;
 	hasUltraMarble = false;
+	/** For challenge missions: the path of the parent level this challenge belongs to (e.g. "beginner/20_tornado.mis") */
+	parentMission: string = null;
 	level: Level;
 
 	constructor(path: string, misFile?: MisFile) {
@@ -107,6 +116,8 @@ export class Mission {
 		if (missionInfo?.qualifyscore) mission.qualifyScore = MisParser.parseNumber(missionInfo.qualifyscore);
 		if (missionInfo.goldscore) mission.goldScore = MisParser.parseNumber(missionInfo.goldscore);
 		mission.type = missionInfo.type.toLowerCase() as any;
+		if (mission.type === 'challenge' && missionInfo.parentmission && typeof missionInfo.parentmission === 'string')
+			mission.parentMission = missionInfo.parentmission.toLowerCase().replace(/\\/g, '/');
 		mission.modification = path.startsWith('mbp/') ? 'platinum' : path.startsWith('mbu/') ? 'ultra' : 'gold';
 		mission.hasEasterEgg = mission.allElements.some(element => element._type === MissionElementType.Item && element.datablock?.toLowerCase() === 'easteregg');
 		mission.setUltraFlags();
@@ -114,7 +125,10 @@ export class Mission {
 		mission.compulsoryGravity();
 		mission.competencyLevel();
 		mission.backwardTimer();
-
+		mission.FlashLightLevel();
+		mission.parseWrappingVector();
+		mission.parseMaxGravitySwaps();
+		mission.applyBanlist();
 		return mission;
 	}
 
@@ -224,6 +238,8 @@ export class Mission {
 		this.compulsoryGravity();
 		this.backwardTimer();
 		this.competencyLevel();
+		this.FlashLightLevel();
+		this.applyBanlist();
 	}
 
 	setUltraFlags() {
@@ -253,10 +269,30 @@ export class Mission {
 	backwardTimer() {
 		let val = (this.missionInfo.backwardclock ?? '').toString().toLowerCase();
 		this.backwardClock = (val === 'true' || val === '1' || val === 'yes');
-		//if ((this.missionInfo.backwardclock ?? '').toLowerCase() === 'true')
-		//this.backwardClock = true;
-		//else
-		//this.backwardClock = false;
+	}
+
+	FlashLightLevel() {
+		const val = (this.missionInfo.flashlightlevel ?? '').toString().toLowerCase();
+		this.flashLightLevel = (val === 'true' || val === '1' || val === 'yes');
+	}
+
+	parseWrappingVector() {
+		if (this.missionInfo?.wrappingvector) {
+			try {
+				this.wrappingVector = MisParser.parseVector3(this.missionInfo.wrappingvector);
+			} catch (e) {
+				console.warn("Failed to parse wrappingVector:", this.missionInfo.wrappingvector);
+				this.wrappingVector = null;
+			}
+		} else {
+			this.wrappingVector = null;
+		}
+	}
+
+	parseMaxGravitySwaps() {
+		let raw = this.missionInfo?.maxgravityswaps;
+		let value = (raw === undefined) ? NaN : MisParser.parseNumber(raw);
+		this.maxGravitySwaps = (Number.isFinite(value) && value >= 0) ? value : Infinity;
 	}
 
 	getDirectoryMissionPath() {
@@ -300,7 +336,7 @@ export class Mission {
 		if (this.modification === 'gold' && path.includes('interiors_mbg/')) path = path.replace('interiors_mbg/', 'interiors/');
 		if (this.modification !== 'gold') path = path.replace('data/', 'data_mbp/');
 
-		let dif: hxDif.Dif = null;
+		let dif: hxDif.Dif;
 		await this.difCachePromises.get(path);
 		if (this.difCache.get(path)) {
 			dif = this.difCache.get(path); // We've already parsed the dif before
@@ -338,7 +374,7 @@ export class Mission {
 
 	/** Gets a DTS file from the mission resources. */
 	async getDts(path: string) {
-		let dts: DtsFile = null;
+		let dts: DtsFile;
 
 		let base = (state.modification === 'gold') ? 'data/' : 'data_mbp/';
 
@@ -356,7 +392,7 @@ export class Mission {
 	}
 
 	async getIfl(path: string) {
-		let ifl: IflFile = null;
+		let ifl: IflFile;
 
 		if (this.zipDirectory && this.zipDirectory.files['data/' + path]) {
 			// Get it from the zip
@@ -482,5 +518,44 @@ export class Mission {
 
 	static compareChronologically(a: Mission, b: Mission) {
 		return a.createdAt - b.createdAt;
+	}
+
+	/** The Banned Textures */
+	applyBanlist() {
+		resetBan(); // It ain't be more simplier than this..
+
+		const banMap: Record<string, () => void> = {
+			red: banRed, orange: banOrange, yellow: banYellow, green: banGreen,
+			cyan: banCyan, blue: banBlue, purple: banPurple, pink: banPink,
+			brown: banBrown, white: banWhite, gray: banGray, black: banBlack,
+			tubes: banTubes
+		};
+
+		// Primary: read from MissionInfo key-value pairs (always reliable)
+		if (this.missionInfo) {
+			const banType = this.missionInfo.bantype;
+			const banColors = this.missionInfo.bancolors;
+
+			if (banType) setBanType(Number(banType));
+			if (banColors) {
+				for (const color of banColors.toLowerCase().split(/[\s,]+/).filter(Boolean)) {
+					banMap[color]?.();
+				}
+			}
+			return;
+		}
+
+		// Fallback: regex-parsed fields for missions without missionInfo
+		if (!this.misFile) return;
+		if (this.misFile.banType !== null && this.misFile.banType !== undefined)
+			setBanType(this.misFile.banType);
+		const callMap: Record<string, () => void> = {
+			banRed, banOrange, banYellow, banGreen, banCyan,
+			banBlue, banPurple, banPink, banBrown, banWhite,
+			banGray, banBlack, banTubes, resetBan
+		};
+		for (const call of (this.misFile.bannedColors ?? [])) {
+			callMap[call]?.();
+		}
 	}
 }

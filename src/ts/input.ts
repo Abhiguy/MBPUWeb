@@ -463,8 +463,13 @@ touchInputContainer.addEventListener('touchmove', (e) => {
 		let yFactor = (StorageManager.data.settings.invertMouse & 0b10)? -1 : 1;
 		let freeLook = StorageManager.data.settings.alwaysFreeLook || isPressed('freeLook');
 
-		level.yaw -= movementX * factor;
-		if (freeLook) level.pitch += movementY * factor * yFactor;
+		let yawDelta = -movementX * factor;
+		if (yawDelta > 0 && level.isControlDisabled('turnLeft')) yawDelta = 0;
+		if (yawDelta < 0 && level.isControlDisabled('turnRight')) yawDelta = 0;
+		level.yaw += yawDelta * level.yawInputSign;
+
+		let pitchLocked = level.isControlDisabled('turnUp', 'turnDown');
+		if (freeLook && !pitchLocked) level.pitch += movementY * factor * yFactor;
 
 		lastCameraTouch = touch;
 	}

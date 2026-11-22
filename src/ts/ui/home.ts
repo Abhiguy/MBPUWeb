@@ -4,7 +4,6 @@ import { state } from "../state";
 import { StorageManager } from "../storage";
 import { Util } from "../util";
 import { Menu } from "./menu";
-import { setMenu } from "./menu_setter";
 
 export abstract class HomeScreen {
 	div: HTMLDivElement;
@@ -55,10 +54,6 @@ export abstract class HomeScreen {
 		}, undefined, undefined, state.modification === 'gold');
 		menu.setupButton(this.changelogBackButton, this.changelogBackSrc, () => {
 			this.changelogContainer.classList.add('hidden');
-		});
-
-		this.div.querySelector('.modification-switcher').addEventListener('click', () => {
-			setMenu((state.modification === 'gold')? 'platinum' : 'gold');
 		});
 	}
 

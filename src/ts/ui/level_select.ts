@@ -40,7 +40,6 @@ export abstract class LevelSelect {
 	lastDisplayBestTimesId: string; // Used to prevent some async issues
 	/** Stores data assigned to a replay button to control which replay is played. */
 	replayButtonData = new WeakMap<HTMLImageElement, string>();
-	fetchingRemoteReplay = false;
 	abstract localScoresCount: number;
 	abstract scorePlaceholderName: string;
 	abstract scoreElementHeight: number;
@@ -99,22 +98,9 @@ export abstract class LevelSelect {
 		}
 
 		// Create the elements for the online leaderboard (will be reused)
+		// Replays are not available from the online leaderboard, so the replay callback is a no-op.
 		for (let i = 0; i < 18; i++) {
-			let element = this.createScoreElement(async () => {
-				if (this.fetchingRemoteReplay) return; // Let's wait for the first fetch to finish shall we :)
-
-				try {
-					this.fetchingRemoteReplay = true;
-					let replayDataBlob = await ResourceManager.retryFetch(`./api/world_record_replay?missionPath=${encodeURIComponent(this.currentMission.path)}`);
-					let buffer = await replayDataBlob.arrayBuffer();
-					this.fetchingRemoteReplay = false;
-
-					return buffer;
-				} catch (e) {
-					this.fetchingRemoteReplay = false;
-					return null;
-				}
-			});
+			let element = this.createScoreElement(async () => null);
 			this.leaderboardScores.appendChild(element);
 		}
 
@@ -519,18 +505,17 @@ export abstract class LevelSelect {
 		element.style.display = 'none';
 		this.replayButtonData.delete(element);
 
-		if (isLocal) {
-			if (!score[2]) return;
+		// Online leaderboard (including the #1 player): never show a replay button, on any level.
+		if (!isLocal) return;
 
-			let randomId = this.lastDisplayBestTimesId;
-			let count = await StorageManager.databaseCount('replays', score[2]);
+		// Local top 3: always show the player's own replay if it exists.
+		if (!score[2]) return;
 
-			if (randomId !== this.lastDisplayBestTimesId || count === 0) return;
-			this.replayButtonData.set(element, score[2]);
-		} else {
-			if (!hasRemoteReplay || rank !== 1) return; // Only show the replay button for the #1 score
-		}
+		let randomId = this.lastDisplayBestTimesId;
+		let count = await StorageManager.databaseCount('replays', score[2]);
+		if (randomId !== this.lastDisplayBestTimesId || count === 0) return;
 
+		this.replayButtonData.set(element, score[2]);
 		element.style.display = 'block';
 	}
 
@@ -661,7 +646,7 @@ export abstract class LevelSelect {
 			directoryHandle = await window.showDirectoryPicker({
 				mode: 'readwrite'
 			});
-		} catch (e) {
+		} catch {
 			return;
 		}
 

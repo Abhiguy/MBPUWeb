@@ -1,0 +1,433 @@
+//--- OBJECT WRITE BEGIN ---
+new SimGroup(MissionGroup) {
+
+   new ScriptObject(MissionInfo) {
+         time = "0";
+         goldTime = "40000";
+         desc = "Use different types of propellors to get to the goal. Some will follow your position, some will rotate constantly, and some try to knock you out of bounds!";
+         type = "Sandbox";
+         artist = "Whirligig231";
+         level = "22";
+         startHelpText = "Be careful--different propellors move different ways.";
+         name = "Propellor Puzzler";
+   };
+   new MissionArea(MissionArea) {
+      area = "-360 -648 720 1296";
+      flightCeiling = "300";
+      flightCeilingRange = "20";
+         locked = "true";
+   };
+   new Sky(Sky) {
+      position = "336 136 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      cloudHeightPer[0] = "0";
+      cloudHeightPer[1] = "0";
+      cloudHeightPer[2] = "0";
+      cloudSpeed1 = "0.0001";
+      cloudSpeed2 = "0.0002";
+      cloudSpeed3 = "0.0003";
+      visibleDistance = "500";
+      useSkyTextures = "1";
+      renderBottomTexture = "1";
+      SkySolidColor = "0.600000 0.600000 0.600000 1.000000";
+      fogDistance = "300";
+      fogColor = "0.600000 0.600000 0.600000 1.000000";
+      fogVolume1 = "-1 -1.99514e+38 -2.02183e+38";
+      fogVolume2 = "-1 -2.14204e+38 -2.15538e+38";
+      fogVolume3 = "-1 -2.24889e+38 -2.26219e+38";
+      materialList = "~/data/skies/sky_day.dml";
+      windVelocity = "1 0 0";
+      windEffectPrecipitation = "0";
+      noRenderBans = "1";
+      fogVolumeColor1 = "128.000000 128.000000 128.000000 -210195007640218172394920879239016218624.000000";
+      fogVolumeColor2 = "128.000000 128.000000 128.000000 -220880937116769280519470456209812750336.000000";
+      fogVolumeColor3 = "128.000000 128.000000 128.000000 -231561674296461853816391502684280061952.000000";
+   };
+   new Sun() {
+      direction = "0.433884 0.614021 -0.659336";
+      color = "1.400000 1.200000 0.400000 1.000000";
+      ambient = "0.300000 0.300000 0.400000 1.000000";
+   };
+   new InteriorInstance() {
+      position = "0 0 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      interiorFile = "~/data/interiors/sandbox/propellors.dif";
+      showTerrainInside = "0";
+   };
+   new StaticShape(EndPoint) {
+      position = "66 122 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "EndPad";
+   };
+   new Item() {
+      position = "80 108 4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "GemItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new StaticShape(StartPoint) {
+      position = "0 0 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "StartPad";
+   };
+   new Trigger(Bounds) {
+      position = "-12.5 127.5 -19";
+      rotation = "1 0 0 0";
+      scale = "97 133 42.5";
+      dataBlock = "InBoundsTrigger";
+      polyhedron = "0.0000000 0.0000000 0.0000000 1.0000000 0.0000000 0.0000000 0.0000000 -1.0000000 0.0000000 0.0000000 0.0000000 1.0000000";
+   };
+   new SimGroup(PropellorGroup) {
+   new StaticShape() {
+      position = "0 14 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "14 28 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "-1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "30 28 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "30 44 0.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 0.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 1.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 1.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 2.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 2.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 3.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 3.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 4.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 4.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 5.25";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "0.7854";
+   };
+   new StaticShape() {
+      position = "30 44 5.75";
+      rotation = "0 0 1 214.984";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "0";
+         follow = "1";
+         offsetFac = "1";
+         offset = "-0.7854";
+   };
+   new StaticShape() {
+      position = "30 50 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "30 54 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "-20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "30 58 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "22 50 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "-20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "22 54 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "22 58 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "-20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "26 52 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "-20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "26 56 0.25";
+      rotation = "1 0 0 0";
+      scale = "0.2 0.2 0.2";
+      dataBlock = "propellor";
+         turnSpeed = "20";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new Item() {
+      position = "24 54 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "GemItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new Item() {
+      position = "28 54 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "GemItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new StaticShape() {
+      position = "22 80 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.7";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "36 94 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.6";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "52 94 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "-0.6";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "66 108 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.5";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "66 108 1";
+      rotation = "0 0 1 20";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.5";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "66 108 2";
+      rotation = "0 0 1 40";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.5";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "66 108 3";
+      rotation = "0 0 1 60";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.5";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   new StaticShape() {
+      position = "66 108 4";
+      rotation = "0 0 1 80";
+      scale = "1 1 1";
+      dataBlock = "propellor";
+         turnSpeed = "0.5";
+         follow = "0";
+         offsetFac = "1";
+         offset = "0";
+   };
+   };
+   new StaticShape() {
+      position = "66.0783 121.957 9.22225";
+      rotation = "0 0 1 15";
+      scale = "1 1 1";
+      dataBlock = "SignFinish";
+   };
+   new Item() {
+      position = "14.3698 33.459 1.32682";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SkillPointItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+};
+//--- OBJECT WRITE END ---

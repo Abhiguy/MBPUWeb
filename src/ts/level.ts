@@ -59,6 +59,8 @@ import { StorageManager } from "./storage";
 import { Replay } from "./replay";
 import { Mission } from "./mission";
 import { PushButton } from "./shapes/push_button";
+import { FloorButton, ButtonGate, GlassPane } from "./buttons";
+import { SpawnPushMarble, SpawnBigMarble, SpawnBeachBallMarble } from "./other_marbles";
 import { StopWatch } from "./shapes/stop_watch";
 import { Revealer } from "./shapes/revealer";
 import { Metal } from "./shapes/metal";
@@ -76,6 +78,7 @@ import { CheckpointTrigger } from "./triggers/checkpoint_trigger";
 import { EasterEgg } from "./shapes/easter_egg";
 import { SkillPointItem } from "./shapes/skillpoint";
 import { Airplane } from "./shapes/airplane";
+import { Boards, Tank, TankTarget } from "./shapes/tank";
 import { RandomPowerUp } from "./shapes/random_power_up";
 import { MbpPauseScreen } from "./ui/pause_screen_mbp";
 import { MbpHud } from "./ui/hud_mbp";
@@ -90,11 +93,13 @@ import { Mesh } from "./rendering/mesh";
 import { Geometry } from "./rendering/geometry";
 import { AmbientLight } from "./rendering/ambient_light";
 import { DirectionalLight } from "./rendering/directional_light";
+import { PointLight } from "./rendering/point_light";
 import { mainCanvas, mainRenderer, resize, SCALING_RATIO } from "./ui/misc";
 import { FRAME_RATE_OPTIONS } from "./ui/options_mbp";
 import { World } from "./physics/world";
 import { CollisionShape } from "./physics/collision_shape";
 import { Vector3 } from "./math/vector3";
+import { Matrix4 } from "./math/matrix4";
 import { Quaternion } from "./math/quaternion";
 import { Euler } from "./math/euler";
 import { OrthographicCamera, PerspectiveCamera } from "./rendering/camera";
@@ -106,14 +111,19 @@ import { TTTPad, TTTState, fireworkSmoke2, redSpark2, redTrail2, blueSpark2, blu
 import { SpringBoard } from "./shapes/springboard";
 import { Grass } from "./shapes/grass";
 import { Monsoon } from "./shapes/monsoon";
-import { Firework, Trail } from "./shapes/end_pad";
+import { Firework } from "./shapes/end_pad";
 import { Tricks, TrickTrigger } from "./triggers/trick_trigger";
 import { TrololoTrigger } from "./triggers/trolololo_trigger";
 import { CornerTrigger } from "./triggers/corner_trigger";
 import { Iceslick } from "./shapes/iceslick";
 import { IcePane } from "./shapes/icepane";
 import { IglooItem } from "./shapes/igloo";
+import { Propellor } from "./shapes/propellor";
 import { WhirliTrigger } from "./triggers/whirli_trigger";
+import { AddWeather } from "./shapes/weather";
+import { Texture } from "./rendering/texture";
+import { GroundhogTrigger, GroundhogTrigger2 } from "./triggers/groundhog_trigger";
+import { BridgeTrigger } from "./triggers/bridge_trigger";
 
 /** How often the physics will be updated, per second. */
 export const PHYSICS_TICK_RATE = 120;
@@ -146,6 +156,12 @@ export const DEFAULT_PITCH = 0.45;
 const BLAST_CHARGE_TIME = 25000;
 export const MAX_TIME = 999 * 60 * 1000 + 59 * 1000 + 999; // 999:59.99, should be large enough
 const MBP_SONGS = ['astrolabe.ogg', 'endurance.ogg', 'flanked.ogg', 'grudge.ogg', 'mbp old shell.ogg', 'quiet lab.ogg', 'rising temper.ogg', 'seaside revisited.ogg', 'the race.ogg'];
+const TRAPDOOR_ICON = "shapes/hazards/trapdoor.dts";
+
+/** Overlay shapes that are counter icons (gem, tank target, trapdoor) rather than power-up icons. */
+function isCounterIcon(path: string) {
+	return path.includes("gem") || path.includes("target") || path === TRAPDOOR_ICON;
+}
 
 // Used for frame rate limiting working correctly
 const decoyCanvas = document.querySelector('#decoy-canvas') as HTMLCanvasElement;
@@ -226,6 +242,20 @@ export class Level extends Scheduler {
 	loadingState: LoadingState;
 
 	scene: Scene;
+	/** Store original ambient light color for limbo effect darkening */
+	originalAmbientColor: Vector3 = null;
+	/** Point light for local illumination in limbo levels, will be created. */
+	marblePointLight: any = null;
+	/** Flickering light color for Slendernado level */
+	flickeringLightColor: Vector3 = null;
+	/** Accumulated time for sailing seas gravity oscillation (ms) */
+	sailingTime = 0;
+	/** Wrapping vector for the level (if wrapping is enabled) */
+	wrappingVector: Vector3 = null;
+	/** Marble clones for wrapping (stores {position: Vector3, object: dummy shape}) */
+	marbleClones: Array<{deltaPosition: Vector3, object: any}> = [];
+	/** Point light clones for wrapping */
+	pointLightClones: Array<{deltaPosition: Vector3, object: any}> = [];
 	camera: PerspectiveCamera;
 	envMap: CubeTexture;
 	world: World;
@@ -356,6 +386,12 @@ export class Level extends Scheduler {
 	hugeAirDone = false;
 	leftPad = false; // Whether the marble left the main startpad or not (for competency levels)
 	padIndex = 0; // tracks current StartPad in competency levels
+	gravitySwapsUsed = 0;
+	groundhogReachedBottom = false;
+	finishLocked = false;
+	hoopsLocked = false;
+	oneJumpUsed = false;
+	oneJumpPending = false;
 
 	analytics = {
 		missionPath: null as string,
@@ -366,6 +402,14 @@ export class Level extends Scheduler {
 		timePaused: 0,
 		endTime: null as number,
 		userRandomId: StorageManager.data.randomId
+	};
+	explosionEffect = {
+		active: false,
+		position: new Vector3(),
+		radius: 0,
+		color: { r: 1, g: 0.6, b: 0.2 },
+		falloffTexture: null as Texture,
+		explosionOpacity: 1.0
 	};
 
 	constructor(mission: Mission, offline: OfflineSettings = null) {
@@ -425,6 +469,12 @@ export class Level extends Scheduler {
 		this.world = new World();
 		await this.initScene();
 		await this.initMarble(); this.loadingState.loaded += 1;
+
+		// Initialize wrapping
+		if (this.mission.wrappingVector) {
+			await this.initializeWrapping();
+		}
+
 		this.particles = new ParticleManager(this);
 		await this.particles.init(mainRenderer);
 		this.scene.particleManager = this.particles;
@@ -435,6 +485,13 @@ export class Level extends Scheduler {
 		this.scene.compile(); this.loadingState.loaded += 1;
 
 		this.replay = new Replay(this);
+
+		let glowTex = await this.mission.getImage('particles/lightFalloffMono.png');
+		let texWrapper = new Texture(glowTex);
+
+		// Store the wrapper, not the raw WebGL handle
+		this.explosionEffect.falloffTexture = texWrapper;
+		this.scene.explosionEffect = this.explosionEffect;
 
 		if (this.mission.title === "Tic-Tac-Toe")
 			this.tttState = new TTTState(this);
@@ -465,6 +522,7 @@ export class Level extends Scheduler {
 			mainCanvas.classList.remove('hidden');
 		}
 	}
+	isIsometric(): boolean { return this.mission.missionInfo?.isometricview === '1'; }
 
 	async initScene() {
 		this.scene = new Scene(mainRenderer);
@@ -479,7 +537,9 @@ export class Level extends Scheduler {
 			let sunDirection = MisParser.parseVector3(element.direction);
 
 			// Create the ambient light
-			this.scene.addAmbientLight(new AmbientLight(new Vector3(ambientColor.x, ambientColor.y, ambientColor.z)));
+			let ambientLight = new AmbientLight(new Vector3(ambientColor.x, ambientColor.y, ambientColor.z));
+			if (!this.originalAmbientColor) this.originalAmbientColor = new Vector3(ambientColor.x, ambientColor.y, ambientColor.z);
+			this.scene.addAmbientLight(ambientLight);
 
 			// Create the sunlight
 			let directionalLight = new DirectionalLight(
@@ -495,6 +555,19 @@ export class Level extends Scheduler {
 				let shadowCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 10);
 				directionalLight.enableShadowCasting(256, shadowCamera);
 			}
+		}
+
+		// Create point light for flashlight/limbo levels
+		if (this.mission.missionInfo?.flashlightlevel === "1" || this.mission.flashLightLevel) {
+			// lightStartRadius, can be modded from .mis!
+			let lightRange = 8; // Default range
+			if (this.mission.missionInfo?.lightstartradius) {
+				lightRange = MisParser.parseNumber(this.mission.missionInfo.lightstartradius);
+			} else if (this.mission.lightStartRadius) {
+				lightRange = this.mission.lightStartRadius;
+			}
+			this.marblePointLight = new PointLight(new Vector3(1.0, 1.0, 1.0), new Vector3(0, 0, 0), lightRange);
+			this.scene.addPointLight(this.marblePointLight); // Adds the point light just above the marble!
 		}
 
 		let skyElement = this.mission.allElements.find((element) => element._type === MissionElementType.Sky) as MissionElementSky;
@@ -595,6 +668,10 @@ export class Level extends Scheduler {
 	}
 
 	async initMarble() {
+		// Load the persisted marble selection into state before marble.init() reads it
+		if (!state.selectedMarble) {
+			state.selectedMarble = await StorageManager.databaseGet('keyvalue', 'selectedMarble') || 'default';
+		}
 		this.marble = new Marble(this);
 		await this.marble.init();
 
@@ -603,6 +680,10 @@ export class Level extends Scheduler {
 	}
 
 	async initUi() {
+		let tankTargetCount = this.shapes.filter(s => s instanceof TankTarget).length;
+		if (tankTargetCount > 0) this.totalGems = tankTargetCount;
+		if (this.isTrapDoorCount) this.totalGems = this.shapes.filter(s => s instanceof TrapDoor).length;
+
 		// Load all necessary UI image elements
 		await state.menu.hud.load();
 
@@ -626,6 +707,13 @@ export class Level extends Scheduler {
 				}
 			}
 		}
+
+		// If this level uses tank targets, replace the gem icon with the target icon in the HUD.
+		if (tankTargetCount > 0) {
+			hudOverlayShapePaths.clear();
+			hudOverlayShapePaths.add("shapes/tank/target.dts");
+		}
+		if (this.isTrapDoorCount) hudOverlayShapePaths.add(TRAPDOOR_ICON);
 
 		this.overlayShapes = [];
 
@@ -658,7 +746,7 @@ export class Level extends Scheduler {
 				this.overlayShapes.push(shape);
 				this.overlayScene.add(shape.group);
 
-				if (path.includes("gem")) {
+				if (isCounterIcon(path)) {
 					shape.ambientSpinFactor /= -2; // Gems spin the other way apparently
 				} else {
 					shape.ambientSpinFactor /= 2;
@@ -727,10 +815,11 @@ export class Level extends Scheduler {
 
 		let toLoad = ["spawn.wav", "ready.wav", "set.wav", "go.wav", "whoosh.wav", musicFileName];
 		if (isFinite(this.mission.qualifyTime) && state.modification === 'platinum') toLoad.push("alarm.wav", "alarm_timeout.wav", "infotutorial.wav");
+		if (this.isGravityFlipJump) toLoad.push("vvvvvvjump.wav");
 
 		try {
 			await this.audio.loadBuffers(toLoad);
-		} catch (e) {
+		} catch  {
 			// Something died, maybe it was the music, try replacing it with a song we know exists
 			let newMusic = Util.randomFromArray(MBP_SONGS);
 			this.originalMusicName = newMusic;
@@ -837,17 +926,23 @@ export class Level extends Scheduler {
 		else if (dataBlockLowerCase === "signfinish") shape = new SignFinish();
 		else if (dataBlockLowerCase === "dummysignfinish") shape = new DummySignFinish();
 		else if (dataBlockLowerCase.startsWith("signplain")) shape = new SignPlain(element as MissionElementStaticShape);
-		else if (dataBlockLowerCase.startsWith("gemitem")) shape = new Gem(element as MissionElementItem), this.totalGems++;
+		else if (dataBlockLowerCase.startsWith("gemitem")) {
+			shape = new Gem(element as MissionElementItem);
+			this.totalGems++;
+		}
 		else if (dataBlockLowerCase.startsWith("dummygemitem")) shape = new DummyGem(element as MissionElementItem);
 		else if (dataBlockLowerCase === "superjumpitem") shape = new SuperJump(element as MissionElementItem);
 		else if (dataBlockLowerCase === "doubleritem") shape = new Doubler(element as MissionElementItem);
 		else if (dataBlockLowerCase.startsWith("signcaution")) shape = new SignCaution(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "superbounceitem") shape = new SuperBounce(element as MissionElementItem);
-		else if (dataBlockLowerCase === "roundbumper") shape = new RoundBumper();
+		else if (dataBlockLowerCase === "roundbumper") shape = new RoundBumper(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "lavafloor") shape = new LavaFloor();
 		else if (dataBlockLowerCase === "trianglebumper") shape = new TriangleBumper();
 		else if (dataBlockLowerCase === "helicopteritem") shape = new Helicopter(element as MissionElementItem);
 		else if (dataBlockLowerCase === "airplaneground") shape = new Airplane(element as MissionElementItem);
+		else if (dataBlockLowerCase === "tank") shape = new Tank(element as MissionElementItem);
+		else if (dataBlockLowerCase === "target") shape = new TankTarget(element as MissionElementItem);
+		else if (dataBlockLowerCase === "boards") shape = new Boards(element as MissionElementItem);
 		else if (dataBlockLowerCase === "oilitem") shape = new Oil(element as MissionElementItem);
 		else if (dataBlockLowerCase === "glueitem") shape = new Glue(element as MissionElementItem);
 		else if (dataBlockLowerCase === "revealeritem") shape = new Revealer(element as MissionElementItem);
@@ -855,15 +950,15 @@ export class Level extends Scheduler {
 		else if (dataBlockLowerCase === "grass") shape = new Grass();
 		else if (dataBlockLowerCase === "television") shape = new Television();
 		else if (dataBlockLowerCase === "smallductfan") shape = new SmallDuctFan();
+		else if (dataBlockLowerCase === "propellor") shape = new Propellor();
 		else if (dataBlockLowerCase === "antigravityitem") shape = new AntiGravity(element as MissionElementItem);
 		else if (dataBlockLowerCase === "norespawnantigravityitem") shape = new AntiGravity(element as MissionElementItem, true);
-		else if (dataBlockLowerCase === "landmine") shape = new LandMine(false);
+		else if (dataBlockLowerCase === "landmine") shape = new LandMine();
 		else if (dataBlockLowerCase === "skymine") shape = new SkyMine(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "fishmine") shape = new FishMine(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "stopwatchitem") shape = new StopWatch(element as MissionElementItem);
 		else if (dataBlockLowerCase === "metalitem") shape = new Metal(element as MissionElementItem);
 		else if (dataBlockLowerCase === "paperitem") shape = new Paper(element as MissionElementItem);
-		else if (dataBlockLowerCase === "landminespecial") shape = new LandMine(true);
 		else if (dataBlockLowerCase === "shockabsorberitem") shape = new ShockAbsorber(element as MissionElementItem);
 		else if (dataBlockLowerCase === "superspeeditem") shape = new SuperSpeed(element as MissionElementItem);
 		else if (["timetravelitem", "timepenaltyitem"].includes(dataBlockLowerCase)) shape = new TimeTravel(element as MissionElementItem);
@@ -873,9 +968,11 @@ export class Level extends Scheduler {
 		else if (dataBlockLowerCase === "oilslick") shape = new Oilslick();
 		else if (dataBlockLowerCase === "iceslick") shape = new Iceslick();
 		else if (dataBlockLowerCase === "icepane") shape = new IcePane();
+		else if (dataBlockLowerCase === "glasspane") shape = new GlassPane();
 		else if (dataBlockLowerCase === "iglooitem") shape = new IglooItem();
 		else if (dataBlockLowerCase === "kaitensupport") shape = new KaitenSupport();
 		else if (dataBlockLowerCase === "lightning") shape = new Lightning();
+		else if (dataBlockLowerCase === "addweather") shape = new AddWeather(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "monsoon") shape = new Monsoon();
 		else if (dataBlockLowerCase === "rotatingplatform1") shape = new RotatingPlatform1();
 		else if (dataBlockLowerCase === "rotatingplatform2") shape = new RotatingPlatform2(element as MissionElementStaticShape);
@@ -887,6 +984,11 @@ export class Level extends Scheduler {
 		else if (dataBlockLowerCase === "springboard") shape = new SpringBoard();
 		else if (dataBlockLowerCase === "planet") shape = new Planet();
 		else if (dataBlockLowerCase === "pushbutton") shape = new PushButton();
+		else if (dataBlockLowerCase === "floorbutton") shape = new FloorButton(element as MissionElementStaticShape);
+		else if (dataBlockLowerCase === "buttongate") shape = new ButtonGate(element as MissionElementStaticShape);
+		else if (dataBlockLowerCase === "spawnpushmarble") shape = new SpawnPushMarble();
+		else if (dataBlockLowerCase === "spawnbigmarble") shape = new SpawnBigMarble();
+		else if (dataBlockLowerCase === "spawnbeachballmarble") shape = new SpawnBeachBallMarble();
 		else if (dataBlockLowerCase.startsWith("sign") || dataBlockLowerCase === "arrow") shape = new Sign(element as MissionElementStaticShape);
 		else if (dataBlockLowerCase === "magnet") shape = new Magnet();
 		else if (dataBlockLowerCase === "nuke") shape = new Nuke();
@@ -954,6 +1056,12 @@ export class Level extends Scheduler {
 			trigger = new CornerTrigger(element, this);
 		} else if (dataBlockLowerCase === "whirlitrigger") {
 			trigger = new WhirliTrigger(element, this);
+		} else if (dataBlockLowerCase === "groundhogtrigger") {
+			trigger = new GroundhogTrigger(element, this);
+		} else if (dataBlockLowerCase === "groundhogtrigger2") {
+			trigger = new GroundhogTrigger2(element, this);
+		} else if (dataBlockLowerCase === "bridgetrigger") {
+			trigger = new BridgeTrigger(element, this);
 		}
 
 		if (!trigger) return;
@@ -1025,7 +1133,31 @@ export class Level extends Scheduler {
 		this.particles.createEmitter(emitterOptions, MisParser.parseVector3(element.position));
 	}
 
-	/** Restarts and resets the level. */
+	/** The FOV the camera should have with no powerup effect active */
+	getBaseFov(): number {
+		if (this.mission.missionInfo?.camerafov) return MisParser.parseNumber(this.mission.missionInfo.camerafov);
+		if (this.isIsometric()) return 10;
+		return StorageManager.data.settings.fov;
+	}
+
+	/** Single source of truth for the camera on ANY respawn (hard restart, OOB fast respawn, checkpoint load).
+	 * Order matters: first cancel every powerup camera effect (so nothing can touch pitch/FOV afterwards),
+	 * then apply the spawn yaw/pitch/FOV from the mission and the spawn orientation. */
+	applySpawnCamera(euler: Euler) {
+		this.marble.resetCameraEffects();
+
+		this.yaw = euler.z + Math.PI / 2 + MisParser.parseNumber(this.mission.missionInfo?.camerayaw ?? '0') * Math.PI / 180;
+		this.pitch = this.mission.missionInfo?.camerapitch ? MisParser.parseNumber(this.mission.missionInfo.camerapitch) : DEFAULT_PITCH;
+
+		this.camera.fov = this.getBaseFov();
+		this.camera.updateProjectionMatrix();
+
+		if (this.isIsometric()) {
+			this.pitch = this.mission.missionInfo?.camerapitch ? MisParser.parseNumber(this.mission.missionInfo.camerapitch) : 0.3;
+			this.yaw = Math.PI * 1.25;
+		}
+	}
+
 	restart(forceHardRestart: boolean) {
 		if (!forceHardRestart && this.mission.backwardClock && this.replay.mode !== "playback") {
 			let startPad = Util.findLast(this.shapes, (shape) => shape instanceof StartPad);
@@ -1063,11 +1195,14 @@ export class Level extends Scheduler {
 		this.currentTimeTravelBonus = 0;
 		this.outOfBounds = false;
 		this.lastPhysicsTick = null;
+		this.explosionEffect.active = false;
+		this.explosionEffect.radius = 0;
 		this.maxDisplayedTime = 0;
 		this.blastAmount = 0;
 		this.gemCount = 0;
 		this.score = 0;
 		this.leftPad = false;
+		this.gravitySwapsUsed = 0;
 		this.padIndex = 0;
 
 		this.currentCheckpoint = null;
@@ -1096,8 +1231,7 @@ export class Level extends Scheduler {
 		this.marble.calculatePredictiveTransforms();
 
 		// Determine starting camera orientation based on the start pad
-		this.yaw = euler.z + Math.PI / 2;
-		this.pitch = DEFAULT_PITCH;
+		this.applySpawnCamera(euler);
 
 		let missionInfo = this.mission.missionInfo;
 		if (missionInfo.starthelptext) state.menu.hud.displayHelp(missionInfo.starthelptext); // Show the start help text
@@ -1112,6 +1246,16 @@ export class Level extends Scheduler {
 		this.oldOrientationQuat = new Quaternion();
 		this.newOrientationQuat = new Quaternion();
 		this.setGravityIntensity(this.defaultGravity);
+		this.sailingTime = 0; // Reset sailing seas timer
+		if (missionInfo.gravityrotation) {
+			let rotation = MisParser.parseRotation(missionInfo.gravityrotation);
+			this.setUp(new Vector3(0, 0, -1).applyQuaternion(rotation)); // Animated, like the original setGravityDir
+		}
+		this.groundhogReachedBottom = false;
+		this.finishLocked = this.isGroundhog;
+		this.hoopsLocked = false;
+		this.oneJumpUsed = false;
+		this.oneJumpPending = false;
 
 		this.deselectPowerUp();
 		hud.setCenterText('none');
@@ -1158,20 +1302,8 @@ export class Level extends Scheduler {
 		this.outOfBounds = false;
 		this.dead = false;
 		this.audio.play('spawn.wav');
-		let startPosition: Vector3;
-		let euler: Euler;
-
-		if (this.mission.competency && this.currentCheckpoint) {
-			// Competency: use the checkpoint set by pickUpGem()
-			startPosition = this.currentCheckpoint.group.position.clone(); // There could be multiple startPads..spawning on all of them
-			euler = new Euler();
-		} else {
-			// In non competency levels...spawning on a single startPad
-			({ position: startPosition, euler } = this.getStartPositionAndOrientation());
-		}
-
-		// Respawn immediately
-		({ position: startPosition, euler } = this.getStartPositionAndOrientation());
+		// Respawn immediately at the start pad
+		let { position: startPosition, euler } = this.getStartPositionAndOrientation();
 		// Position the marble
 		this.marble.body.position.set(startPosition.x, startPosition.y, startPosition.z + 3);
 		this.marble.body.linearVelocity.setScalar(0);
@@ -1182,8 +1314,7 @@ export class Level extends Scheduler {
 		this.marble.reset();
 		this.marble.calculatePredictiveTransforms();
 		// Restore orientation
-		this.yaw = euler.z + Math.PI / 2;
-		this.pitch = DEFAULT_PITCH;
+		this.applySpawnCamera(euler);
 
 		// Reset camera text
 		state.menu.hud.setCenterText('none');
@@ -1260,12 +1391,17 @@ export class Level extends Scheduler {
 		this.updateCamera(tempTimeState);
 		this.camera.updateMatrixWorld();
 
+		// Update limbo light effect
+		this.updateLimboLight();
+
+		// Update wrapping/cloning for infinite space
+		this.updateWrapping();
+
 		// Update the shadow camera
 		this.scene.directionalLights[0]?.updateCamera(this.marble.group.position.clone(), -1);
 
 		// Render the scene
 		this.scene.prepareForRender(this.camera);
-		this.marble.renderReflection();
 		mainRenderer.render(this.scene, this.camera);
 
 		// Update the overlay
@@ -1273,7 +1409,15 @@ export class Level extends Scheduler {
 			overlayShape.group.position.x = 500; // Make sure the shape is between the near and far planes of the camera
 			overlayShape.render(this.timeState);
 
-			if (overlayShape.dtsPath.includes("gem")) {
+			if (overlayShape.dtsPath.includes("target")) {
+				overlayShape.group.scale.setScalar(8 / SCALING_RATIO);
+				overlayShape.group.position.y = 25 / SCALING_RATIO;
+				overlayShape.group.position.z = -35 / SCALING_RATIO;
+			} else if (overlayShape.dtsPath === TRAPDOOR_ICON) {
+				overlayShape.group.scale.setScalar(16 / SCALING_RATIO);
+				overlayShape.group.position.y = 25 / SCALING_RATIO;
+				overlayShape.group.position.z = -35 / SCALING_RATIO;
+			} else if (overlayShape.dtsPath.includes("gem")) {
 				overlayShape.group.scale.setScalar(45 / SCALING_RATIO);
 				overlayShape.group.position.y = 25 / SCALING_RATIO;
 				overlayShape.group.position.z = -35 / SCALING_RATIO;
@@ -1332,9 +1476,20 @@ export class Level extends Scheduler {
 			cameraVerticalTranslation.applyQuaternion(orientationQuat);
 
 			this.camera.up = up;
-			this.camera.position.copy(marblePosition).sub(directionVector.clone().multiplyScalar(2.5));
+			let camDist = this.mission.missionInfo?.cameradistance
+				? MisParser.parseNumber(this.mission.missionInfo.cameradistance)
+				: this.isIsometric() ? 100 : 2.5;
+			this.camera.position.copy(marblePosition).sub(directionVector.clone().multiplyScalar(camDist));
 			this.camera.lookAt(marblePosition);
 			this.camera.position.add(cameraVerticalTranslation);
+
+			if (this.mission.missionInfo?.sailingseas === '1') {
+				let sine = Math.sin(this.sailingTime * Math.PI / 2000);
+				let forward = marblePosition.clone().sub(this.camera.position).normalize();
+				let rollQuat = new Quaternion().setFromAxisAngle(forward, sine * 0.18);
+				this.camera.up.applyQuaternion(rollQuat);
+				this.camera.lookAt(marblePosition); // re-apply lookAt with the tilted up vector
+			}
 
 			// Handle wall intersections:
 			const closeness = 0.1;
@@ -1385,14 +1540,113 @@ export class Level extends Scheduler {
 				break;
 			}
 
+			// camerazrot turns the camera in place around the vertical axis (position stays behind the marble, so you look away from it); movement keeps using this.yaw. Done last so the wall-collision camera adjustments above are already included.
+			if (this.mission.missionInfo?.camerazrot) {
+				// rotate around the camera's OWN up axis (local Y), so the pitch flips along with the heading
+				let zRotQuat = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), MisParser.parseNumber(this.mission.missionInfo.camerazrot) * Math.PI / 180);
+				this.camera.orientation.multiply(zRotQuat);
+			}
 			this.lastVerticalTranslation = cameraVerticalTranslation;
 		} else {
 			// Simply look at the marble
 			this.camera.position.copy(this.oobCameraPosition);
 			this.camera.position.sub(this.lastVerticalTranslation);
 			this.camera.lookAt(marblePosition);
+			if (this.mission.missionInfo?.camerazrot) {
+				let zRotQuat = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), MisParser.parseNumber(this.mission.missionInfo.camerazrot) * Math.PI / 180);
+				this.camera.orientation.multiply(zRotQuat);
+			}
 			this.camera.position.add(this.lastVerticalTranslation);
 		}
+	}
+
+	/** Updates the limbo light effect by orienting the sun direction and darkening ambient light. This Function will be called in render(); */
+	updateLimboLight() {
+		if ((this.mission.missionInfo?.flashlightlevel === "1" || this.mission.flashLightLevel) && this.originalAmbientColor) {
+			// Update sun direction
+			let sunDirection: Vector3;
+			// For Slendernado, use camera's local Y-axis transformed to world space (like MBPU's setSunDirection with MatrixMulVector)
+			if (this.mission.missionInfo?.name === "Slendernado" || this.mission.title === "Slendernado") {
+				sunDirection = new Vector3(0, 1, 0);
+				let rotationMatrix = new Matrix4();
+				rotationMatrix.extractRotation(this.camera.matrixWorld);
+				sunDirection.applyMatrix4(rotationMatrix);
+				sunDirection.normalize();
+			} else {
+				// For other limbo levels, point sun from camera toward player
+				let cameraPosition = this.camera.position.clone();
+				let playerPosition = this.marble.group.position.clone();
+				sunDirection = playerPosition.sub(cameraPosition);
+				if (sunDirection.length() > 0) {
+					sunDirection.normalize();
+				}
+			}
+			if (this.scene.directionalLights[0]) {
+				this.scene.directionalLights[0].direction = sunDirection;
+			}
+			// Darken the ambient light for limbo atmosphere. kinda hacky..
+			if (this.scene.ambientLights[0]) {
+				this.scene.ambientLights[0].color.copy(new Vector3(0.0, 0.0, 0.0));
+			}
+			// Update point light position to follow marble, illuminating everything around it defined by lightendRadius.
+			if (this.marblePointLight) {
+				this.marblePointLight.position.copy(this.camera.position);
+				// Update the range based on lightEndRadius, can also be modded from .mis!
+				let newRange = 8; // Default range
+				if (this.mission.missionInfo?.lightendradius) {
+					newRange = MisParser.parseNumber(this.mission.missionInfo.lightendradius);
+				} else if (this.mission.lightEndRadius) {
+					newRange = this.mission.lightEndRadius;
+				}
+				this.marblePointLight.range = newRange;
+				// Phew, Apply flickering effect for Slendernado level..
+				if (this.mission.missionInfo?.name === "Slendernado" || this.mission.title === "Slendernado") {
+					let colorValue = (Math.min(0.1, Math.max(Math.random() / 10, Math.random() / 10) + Math.max(Math.random() / 10, Math.random() / 10)) + 0.15) * 3.5;
+					// 3.5 made up the day!
+					this.flickeringLightColor = new Vector3(colorValue, colorValue, colorValue);
+					this.marblePointLight.color.copy(this.flickeringLightColor); // copy the flickering color..
+				} else {
+					// Ensure marble point light is white for regular limbo levels
+					this.marblePointLight.color.set(1.0, 1.0, 1.0);
+				}
+			}
+		} else if (this.originalAmbientColor && this.scene.ambientLights[0]) {
+			// Restore original ambient light when not in limbo, normal levels.
+			this.scene.ambientLights[0].color.copy(this.originalAmbientColor);
+		}
+	}
+
+
+	/** Returns true if the given control key is disabled for this mission via the disable= MissionInfo field. */
+	isControlDisabled(...keys: string[]): boolean {
+		const raw = this.mission.missionInfo?.disable;
+		if (!raw) return false;
+		const disabled = raw.toLowerCase().split(/[\s,]+/).filter(Boolean);
+		return keys.some(k => disabled.includes(k.toLowerCase()));
+	}
+
+	/**
+	 * Plays a landmine-style explosion at `position`. The shared ring effect
+	 * is a fragment-shader overlay that works fine on normally-lit levels,
+	 * but a level that's already relying on marblePointLight for visibility
+	 * (see updateLimboLight) runs near-pitch-black and depends entirely on
+	 * the vertex-accumulated point-light array (see material_vert.glsl) —
+	 * so there, the mine has to add a real PointLight to that array instead
+	 * of just glowing on top of the dark. Returns the light created, if any,
+	 * so the caller can fade it out over time.
+	 */
+	triggerExplosionEffect(position: Vector3): PointLight {
+		if (!this.marblePointLight) {
+			this.explosionEffect.position.copy(position);
+			this.explosionEffect.radius = 6; // The epicenter of the blast illumination
+			this.explosionEffect.color = { r: 0.5, g: 0.5, b: 0.5 };
+			this.explosionEffect.active = true;
+			return null;
+		}
+
+		let light = new PointLight(new Vector3(10, 10, 10), position.clone(), 35);
+		this.scene.addPointLight(light);
+		return light;
 	}
 
 	tick(time?: number) {
@@ -1485,11 +1739,20 @@ export class Level extends Scheduler {
 			if (this.offline) this.audio.currentTimeOverride = this.timeState.currentAttemptTime / 1000;
 
 			if (this.mission.hasBlast && this.blastAmount < 1) this.blastAmount = Util.clamp(this.blastAmount + 1000 / BLAST_CHARGE_TIME / PHYSICS_TICK_RATE, 0, 1);
+			if (this.isRandomPaths && this.replay.mode !== 'playback' && this.timeState.currentAttemptTime >= 2000 && this.finishTime === null) this.randomizePathedInteriors();
 
 			for (let interior of this.interiors) interior.tick(this.timeState);
 			for (let trigger of this.triggers) trigger.tick(this.timeState);
 			for (let shape of this.shapes) if (!shape.isTSStatic) shape.tick(this.timeState);
 			this.marble.tick(this.timeState);
+
+			if (this.mission.missionInfo?.sailingseas === '1') {
+				this.sailingTime += 1000 / PHYSICS_TICK_RATE;
+				let sine = Math.sin(this.sailingTime * Math.PI / 2000);
+				let vec = new Vector3(sine * 5, sine * 5, -20);
+				vec.normalize().multiplyScalar(20);
+				this.world.gravity.copy(vec);
+			}
 
 			if (!playReplay) {
 				let gravityBefore = this.world.gravity.clone();
@@ -1506,18 +1769,29 @@ export class Level extends Scheduler {
 			let pitchChange = 0.0;
 			let freeLook = StorageManager.data.settings.alwaysFreeLook || isPressed('freeLook');
 			let amount = Util.lerp(1, 6, StorageManager.data.settings.keyboardSensitivity);
-			if (isPressed('cameraLeft')) yawChange += amount;
-			if (isPressed('cameraRight')) yawChange -= amount;
-			if (isPressed('cameraUp')) pitchChange -= amount;
-			if (isPressed('cameraDown')) pitchChange += amount;
+			if (isPressed('cameraLeft') && !this.isControlDisabled('turnLeft')) yawChange += amount;
+			if (isPressed('cameraRight') && !this.isControlDisabled('turnRight')) yawChange -= amount;
+			if (isPressed('cameraUp') && !this.isControlDisabled('turnUp', 'turnDown')) pitchChange -= amount;
+			if (isPressed('cameraDown') && !this.isControlDisabled('turnUp', 'turnDown')) pitchChange += amount;
 
-			yawChange -= gamepadAxes.cameraX * Util.lerp(0.5, 10, StorageManager.data.settings.mouseSensitivity);
-			if (freeLook) pitchChange += gamepadAxes.cameraY * Util.lerp(0.5, 10, StorageManager.data.settings.mouseSensitivity);
+			let padYaw = -gamepadAxes.cameraX * Util.lerp(0.5, 10, StorageManager.data.settings.mouseSensitivity); // positive = turning left
+			if (padYaw > 0 && this.isControlDisabled('turnLeft')) padYaw = 0;
+			if (padYaw < 0 && this.isControlDisabled('turnRight')) padYaw = 0;
+			yawChange += padYaw;
+			if (freeLook && !this.isControlDisabled('turnUp', 'turnDown')) pitchChange += gamepadAxes.cameraY * Util.lerp(0.5, 10, StorageManager.data.settings.mouseSensitivity);
 
-			this.yaw += yawChange / PHYSICS_TICK_RATE;
+			this.yaw += yawChange * this.yawInputSign / PHYSICS_TICK_RATE;
 			this.pitch += pitchChange / PHYSICS_TICK_RATE;
 
 			this.particles.tick();
+			if (this.scene.explosionEffect.active) {
+				this.scene.explosionEffect.radius -= 0.05;
+				// Turn it off once it's detonated and cooling down.
+				if (this.scene.explosionEffect.radius <= 3.0) {
+					this.scene.explosionEffect.active = false;
+					this.scene.explosionEffect.radius = 0;
+				}
+			}
 			tickDone = true;
 
 			// Handle alarm warnings (that the user is about to exceed the par time)
@@ -1574,14 +1848,6 @@ export class Level extends Scheduler {
 		if (!this.finishTime && isPressed('restart') && this.restartPressTime !== null) {
 			if (this.restartPressTime !== null && performance.now() - this.restartPressTime >= 1000)
 				this.restart(true);
-		}
-
-		// The FlashLight Effect for interiors in slendernado level...
-		// Visibility of the interiors will change with respect to marble's proximity to them.
-		if (this.mission.title === "Slendernado") {
-			for (const interior of this.interiors) {
-				interior.updateVisibility(this.marble.body.position);
-			}
 		}
 
 		// for handling finish fireworks at random marble position in backwardClock levels per frame
@@ -1687,6 +1953,70 @@ export class Level extends Scheduler {
 	getOrientationQuat(time: TimeState) {
 		let completion = Util.clamp((time.currentAttemptTime - this.orientationChangeTime) / 300, 0, 1);
 		return this.oldOrientationQuat.clone().slerp(this.newOrientationQuat, completion).normalize();
+	}
+
+	get isOneUse() { return this.mission.missionInfo?.oneuse === '1'; }
+	get isOneJump() { return this.mission.missionInfo?.onejump === '1'; }
+	get isGravityFlipJump() { return this.mission.missionInfo?.gravityflipjump === '1'; }
+
+	flipGravity() {
+		this.setUp(this.currentUp.clone().multiplyScalar(-1));
+		this.audio.play('vvvvvvjump.wav');
+	}
+
+	get isOneHoop() { return this.mission.missionInfo?.onehoop === '1'; }
+	get isGroundhog() { return this.mission.missionInfo?.groundhog === '1'; }
+	get isRandomPaths() { return this.mission.missionInfo?.randompaths === '1'; }
+
+	/** Port of the original onStep: each pathed interior has a small chance per step to restart its path or to head back to 200 ms and stop. */
+	randomizePathedInteriors() {
+		// The original rolled once per 32 ms tick, so scale the chances to this port's tick rate
+		let steps = (1000 / PHYSICS_TICK_RATE) / 32;
+		let restartChance = 1 - Math.pow(1 - 0.02, steps);
+		let stopChance = 1 - Math.pow(1 - 0.01, steps);
+
+		for (let interior of this.interiors) {
+			if (!(interior instanceof PathedInterior)) continue;
+
+			let rand = Math.random();
+			if (rand > 1 - restartChance) interior.setTargetTime(this.timeState, -1);
+			else if (rand < stopChance) interior.setTargetTime(this.timeState, 200);
+		}
+	}
+
+	get yawInputSign() { return this.mission.missionInfo?.invertyaw === '1' ? -1 : 1; }
+	get isTrapDoorCount() { return this.mission.missionInfo?.counttrapdoors === '1'; }
+	get trapDoorsStayOpen() { return this.isOneUse || this.isTrapDoorCount; }
+
+	/** Called the first time each trapdoor is touched in an attempt. */
+	registerTrapDoorHit() {
+		this.gemCount++;
+	}
+
+	/** Called by a power-up when it's picked up. In oneuse missions, every power-up is hidden until the next respawn. */
+	registerOneUsePickup() {
+		if (!this.isOneUse) return;
+		for (let shape of this.shapes) {
+			if (shape instanceof PowerUp) shape.hiddenByLevel = true;
+		}
+	}
+	/** In oneuse missions, touching one trapdoor opens all of them. */
+	openAllTrapDoors(touched: TrapDoor) {
+		for (let shape of this.shapes) {
+			if (shape instanceof TrapDoor && shape !== touched) shape.open();
+		}
+	}
+
+	registerGravitySwap(used: AntiGravity) {
+		if (!Number.isFinite(this.mission.maxGravitySwaps)) return; // No limit, so nothing to do
+
+		this.gravitySwapsUsed++;
+		if (this.gravitySwapsUsed < this.mission.maxGravitySwaps) return;
+
+		for (let shape of this.shapes) {
+			if (!(shape instanceof AntiGravity)) continue;
+			shape.setLockedOut(shape !== used);
+		}
 	}
 
 	/** Sets the current up vector and gravity with it. */
@@ -1807,8 +2137,11 @@ export class Level extends Scheduler {
 		let yFactor = (StorageManager.data.settings.invertMouse & 0b10) ? -1 : 1;
 		let freeLook = StorageManager.data.settings.alwaysFreeLook || isPressed('freeLook');
 
-		if (freeLook) this.pitch += e.movementY * factor * yFactor;
-		this.yaw -= e.movementX * factor * xFactor;
+		if (freeLook && !this.isControlDisabled('turnUp', 'turnDown')) this.pitch += e.movementY * factor * yFactor;
+		let yawDelta = -e.movementX * factor * xFactor * this.yawInputSign;
+		if (yawDelta > 0 && this.isControlDisabled('turnLeft')) yawDelta = 0;
+		if (yawDelta < 0 && this.isControlDisabled('turnRight')) yawDelta = 0;
+		this.yaw += yawDelta;
 	}
 
 	pickUpPowerUp(powerUp: PowerUp, playPickUpSound = true) {
@@ -1818,14 +2151,14 @@ export class Level extends Scheduler {
 		state.menu.hud.setPowerupButtonState(true);
 
 		for (let overlayShape of this.overlayShapes) {
-			if (overlayShape.dtsPath.includes("gem")) continue;
+			if (isCounterIcon(overlayShape.dtsPath)) continue;
 
 			// Show the corresponding icon in the HUD
 			overlayShape.setOpacity(Number(overlayShape.dtsPath === powerUp.dtsPath));
 		}
 
 		for (let overlayShape of this.overlayShapes) {
-			if (overlayShape.dtsPath.includes("gem")) continue;
+			if (isCounterIcon(overlayShape.dtsPath)) continue;
 			overlayShape.setOpacity(Number(overlayShape.dtsPath === powerUp.dtsPath));
 		}
 
@@ -1843,32 +2176,28 @@ export class Level extends Scheduler {
 		state.menu.hud.setPowerupButtonState(false);
 
 		for (let overlayShape of this.overlayShapes) {
-			if (overlayShape.dtsPath.includes("gem")) continue;
+			if (isCounterIcon(overlayShape.dtsPath)) continue;
 			overlayShape.setOpacity(0);
 		}
 	}
 
 	pickUpGem(gem: Gem, t: number) {
 		this.gemCount++;
-		// Award score based on gem color
 		if (gem.gemColor === 'red') this.score += 10000;
 		else if (gem.gemColor === 'yellow') this.score += 20000;
 		else if (gem.gemColor === 'blue') this.score += 50000;
 		let string: string;
 		let gemWord = (state.modification === 'gold') ? 'gem' : 'diamond';
 
-		// Show a notification (and play a sound) based on the gems remaining
 		if (this.gemCount === this.totalGems) {
 			string = `You have all the ${gemWord}s, head for the finish!`;
 			this.audio.play('gotallgems.wav');
 
-			// Some levels with this package end immediately upon collection of all gems
 			if (this.mission.misFile.activatedPackages.includes('endWithTheGems')) {
 				this.touchFinish(t);
 			}
 		} else {
 			let showRemaining = true;
-			// Custom alert for backwardClock levels and colored gems
 			if (this.mission.backwardClock) {
 				if (gem.gemColor === 'red') {
 					string = "Red Gem\n10,000";
@@ -1883,27 +2212,22 @@ export class Level extends Scheduler {
 					string = `You picked up a ${gemWord}${state.modification === 'gold' ? '.' : '!'}`;
 				}
 			} else if (this.mission.competency) {
-				// Increment pad index BEFORE respawning
 				this.timeState.gameplayClock = 0;
 				this.padIndex++;
 				this.score += this.timeState.currentAttemptTime / 1000;
 				this.score += 20;
-				// Find all StartPads and sort by padIndex
 				const startPads = this.shapes.filter(s => s instanceof StartPad)
 					.sort((a, b) => (a as StartPad).padIndex - (b as StartPad).padIndex) as StartPad[];
 
-				// Wrap around if padIndex exceeds the number of pads
 				if (this.padIndex > startPads.length) this.padIndex = 1;
 
 				// Find the next pad by padIndex
 				const nextPad = startPads.find(p => p.padIndex === this.padIndex);
 
 				if (nextPad) {
-					// respawn player at next successive start pads
 					this.currentCheckpoint = nextPad;
 				}
 
-				// Calling the fast respawn
 				this.fastRespawnPlayer();
 				string = `You picked up a ${gemWord}${state.modification === 'gold' ? '.' : '!'}`;
 			} else {
@@ -1921,6 +2245,16 @@ export class Level extends Scheduler {
 			this.audio.play('gotgem.wav');
 		}
 		state.menu.hud.displayAlert(string, '#ffff00');
+	}
+
+	awardTankPoints(points: number) {
+		this.score += points;
+		if (this.totalGems > 0) {
+			this.gemCount++;
+			if (this.gemCount === this.totalGems) {
+				this.audio.play('bell2.wav');
+			}
+		}
 	}
 
 	addTimeTravelBonus(bonus: number, timeToRevert: number) {
@@ -2054,8 +2388,7 @@ export class Level extends Scheduler {
 		// Set camera orienation
 		let euler = new Euler();
 		euler.setFromQuaternion(this.currentCheckpoint.worldOrientation, "ZXY");
-		this.yaw = euler.z + Math.PI / 2;
-		this.pitch = DEFAULT_PITCH;
+		this.applySpawnCamera(euler);
 
 		// Restore gem states
 		for (let shape of this.shapes) {
@@ -2069,10 +2402,13 @@ export class Level extends Scheduler {
 
 		// Turn all of these off
 		marble.superBounceEnableTime = -Infinity;
+		marble.superBounceEnableTimex2 = -Infinity; // the doubled timers were left running by checkpoint respawns
 		marble.shockAbsorberEnableTime = -Infinity;
+		marble.shockAbsorberEnableTimex2 = -Infinity;
 		marble.helicopterEnableTime = -Infinity;
 		marble.helicopterEnableTimex2 = -Infinity;
 		marble.megaMarbleEnableTime = -Infinity;
+		marble.glueEnableTime = -Infinity; // checkpoint respawns skip marble.reset(), so end glue here too
 
 		this.clearSchedule();
 		this.outOfBounds = false;
@@ -2103,6 +2439,7 @@ export class Level extends Scheduler {
 			let angleDeg = gravityDown.angleTo(finishUp) * (180 / Math.PI);
 			if (angleDeg > 60) return;  // Get your best to unlock the finish..
 		}
+		if (this.finishLocked && this.replay.mode !== 'playback') return; // Groundhog Day: the finish pad does nothing until the player has been down and back up
 
 		this.replay.recordTouchFinish();
 		// In Backward Clock or Competency levels a player can always finish.
@@ -2128,6 +2465,7 @@ export class Level extends Scheduler {
 
 			this.finishYaw = this.yaw;
 			this.finishPitch = this.pitch;
+			this.stopWatchActive = false;
 
 			let endPad = Util.findLast(this.shapes, (shape) => shape instanceof EndPad) as EndPad;
 			endPad?.spawnFirework(this.timeState); // EndPad *might* not exist, in that case no fireworks lol
@@ -2238,9 +2576,122 @@ export class Level extends Scheduler {
 		}
 	}
 
+	/** Initializes wrapping/cloning for infinite space effect. */
+	async initializeWrapping() {
+		if (!this.mission.wrappingVector || !this.marble) return;
+
+		let wrappingVec = this.mission.wrappingVector;
+
+		// Use +-2 rings for visual clones (5x5 grid for a 2D wrap = 24 clones).
+		// +-1 only gave 8 which ran out too fast visually.
+		const VISUAL_RINGS = 2;
+		const makeRange = (wrap: number): number[] => {
+			let vals: number[] = [];
+			for (let i = -VISUAL_RINGS; i <= VISUAL_RINGS; i++) vals.push(i * wrap);
+			return vals;
+		};
+		let xValues = wrappingVec.x > 0 ? makeRange(wrappingVec.x) : [0];
+		let yValues = wrappingVec.y > 0 ? makeRange(wrappingVec.y) : [0];
+		let zValues = wrappingVec.z > 0 ? makeRange(wrappingVec.z) : [0];
+
+		// Shader hard-caps point lights at 8 total (material_frag.glsl: pointLightColor[8]).
+		// Original marble light uses 1 slot => 7 remain for clones.
+		// We create all 24 visual clones but only register 7 point light clones,
+		// assigned to the first 7 slots. updateWrapping re-targets them to the
+		// nearest clones every frame so the closest copies always have lighting.
+		const MAX_POINT_LIGHT_CLONES = 24; // 24 visual clones all get a light; shader now supports 32 total
+
+		for (let x of xValues) {
+			for (let y of yValues) {
+				for (let z of zValues) {
+					if (x === 0 && y === 0 && z === 0) continue;
+
+					let deltaPosition = new Vector3(x, y, z);
+
+					let cloneMarble = this.marble.cloneForWrapping();
+					cloneMarble.group.position.copy(this.marble.group.position).add(deltaPosition);
+					cloneMarble.group.recomputeTransform();
+					this.scene.add(cloneMarble.group);
+					this.marbleClones.push({ deltaPosition, object: cloneMarble });
+				}
+			}
+		}
+
+		// Positions will be updated each frame by updateWrapping to track the nearest clones.
+		if (this.marblePointLight) {
+			let count = Math.min(MAX_POINT_LIGHT_CLONES, this.marbleClones.length);
+			for (let i = 0; i < count; i++) {
+				let lightPosition = this.marble.group.position.clone()
+					.add(this.marbleClones[i].deltaPosition)
+					.addScaledVector(new Vector3(0, 0, 1), 1.5);
+				let pointLightClone = new PointLight(
+					this.marblePointLight.color.clone(),
+					lightPosition,
+					this.marblePointLight.range
+				);
+				this.scene.addPointLight(pointLightClone);
+				this.pointLightClones.push({
+					deltaPosition: this.marbleClones[i].deltaPosition,
+					object: pointLightClone
+				});
+			}
+		}
+	}
+
+	/** Updates wrapping/cloning positions based on marble position. */
+	updateWrapping() {
+		if (!this.mission.wrappingVector || !this.marble) return;
+
+		let marblePosition = this.marble.group.position;
+
+		for (let clone of this.marbleClones) {
+			if (clone.object) {
+				clone.object.group.position.copy(marblePosition).add(clone.deltaPosition);
+				clone.object.innerGroup.orientation.copy(this.marble.innerGroup.orientation);
+				clone.object.group.recomputeTransform();
+				clone.object.innerGroup.recomputeTransform();
+
+				// Sync sphere opacity every frame (0 when ballShape is active, 1 otherwise)
+				for (let child of clone.object.innerGroup.children) {
+					if (child instanceof Mesh) {
+						child.opacity = this.marble.sphere?.opacity ?? 1;
+						break; // Only the first child is the sphere
+					}
+				}
+			}
+		}
+
+		// Re-assign point light slots to the nearest clones each frame.
+		// We only have 7 clone lights (shader cap = 8, original marble uses 1).
+		// Sort all clones by distance to camera and give the lights to the closest ones.
+		if (this.pointLightClones.length > 0 && this.marblePointLight) {
+			let cameraPos = this.camera.position;
+
+			// Sort clones by proximity to camera so closest always get a light
+			let sorted = [...this.marbleClones].sort((a, b) => {
+				let pa = marblePosition.clone().add(a.deltaPosition);
+				let pb = marblePosition.clone().add(b.deltaPosition);
+				return pa.distanceTo(cameraPos) - pb.distanceTo(cameraPos);
+			});
+
+			for (let i = 0; i < this.pointLightClones.length; i++) {
+				let targetClone = sorted[i];
+				// Re-point this light slot at the i-th nearest clone
+				this.pointLightClones[i].deltaPosition = targetClone.deltaPosition;
+				this.pointLightClones[i].object.position
+					.copy(marblePosition)
+					.addScaledVector(new Vector3(0, 0, 1), 1.5)
+					.add(targetClone.deltaPosition);
+				this.pointLightClones[i].object.range = this.marblePointLight.range;
+				this.pointLightClones[i].object.color.copy(this.marblePointLight.color);
+			}
+		}
+	}
+
 	/** Returns how much percent the level has finished loading. */
 	getLoadingCompletion() {
-		return this.loadingState.total ? this.loadingState.loaded / this.loadingState.total : 0;
+		if (!this.loadingState.total) return 0;
+		return Math.min(1, this.loadingState.loaded / this.loadingState.total);
 	}
 
 	/** Disposes the GPU assets used by the level. */
@@ -2248,5 +2699,7 @@ export class Level extends Scheduler {
 		this.scene.dispose();
 		this.marble.dispose();
 		mainRenderer.cleanUp();
+		this.explosionEffect.falloffTexture = null;
+		this.scene.explosionEffect = null;
 	}
 }

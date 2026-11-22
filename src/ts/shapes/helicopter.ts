@@ -32,7 +32,7 @@ export class Helicopter extends PowerUp {
 			this.level.marble.doubler = false; // Reset doubler
 		}
 		else {
-			this.level.marble.enableHelicopter(this.level.timeState, this.gyrocopterTime);
+			this.level.marble.enableHelicopter(this.level.timeState, this.gyrocopterTime, this.gyrocopterGravityMultiplier, this.airAcceleration);
 		}
 		this.level.deselectPowerUp();
 	}

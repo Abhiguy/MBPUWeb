@@ -3,6 +3,7 @@ import materialFrag from './shaders/material_frag.glsl';
 import { AmbientLight } from "./ambient_light";
 import { VertexBuffer, VertexBufferGroup } from "./vertex_buffer";
 import { DirectionalLight } from "./directional_light";
+import { PointLight } from "./point_light";
 import { Group } from "./group";
 import { Material } from "./material";
 import { MaterialIndexData, Mesh } from "./mesh";
@@ -14,6 +15,7 @@ import { Vector3 } from '../math/vector3';
 import { Vector2 } from '../math/vector2';
 import { Matrix4 } from '../math/matrix4';
 import { Camera } from './camera';
+import { Texture } from './texture';
 
 /** Groups together different geometry from different meshes which all share the same material, so that they can all be drawn together. */
 export interface MaterialGroup {
@@ -26,6 +28,16 @@ export interface MaterialGroup {
 	count: number,
 	/** Minimum distance of any mesh in this group to the camera; will be updated on the fly. */
 	minDistance?: number
+}
+
+/** Data structure for the global explosion light effect */
+export interface ExplosionEffect {
+    active: boolean;
+    position: Vector3;
+    radius: number;
+    color: {r: number, g: number, b: number};
+    falloffTexture: Texture;
+	explosionOpacity: number;
 }
 
 /** A scene is responsible for holding the description of a renderable world and preparing it for efficient rendering. */
@@ -58,11 +70,25 @@ export class Scene extends Group {
 
 	ambientLights: AmbientLight[] = [];
 	directionalLights: DirectionalLight[] = [];
+	pointLights: PointLight[] = [];
+	camera: any = null;
+
+	explosionEffect: ExplosionEffect = {
+		active: false,
+		position: new Vector3(),
+		radius: 0,
+		color: {r: 1, g: 1, b: 1},
+		falloffTexture: null,
+		explosionOpacity: 1.0
+	};
 
 	ambientLightBuffer: Float32Array;
 	directionalLightColorBuffer: Float32Array;
 	directionalLightDirectionBuffer: Float32Array;
 	directionalLightTransformBuffer: Float32Array;
+	pointLightColorBuffer: Float32Array;
+	pointLightCount = 0;
+	pointLightPositionRangeBuffer: Float32Array;
 
 	particleManager: ParticleManager = null;
 
@@ -82,6 +108,10 @@ export class Scene extends Group {
 
 	addDirectionalLight(light: DirectionalLight) {
 		this.directionalLights.push(light);
+	}
+
+	addPointLight(light: PointLight) {
+		this.pointLights.push(light);
 	}
 
 	/**
@@ -233,6 +263,21 @@ export class Scene extends Group {
 		this.directionalLightDirectionBuffer = new Float32Array(directionalLightDirection.toArray());
 		this.directionalLightTransformBuffer = new Float32Array(16);
 
+		// store color and position + range for last point light, primitively for explosions
+		// multiple point lights..
+		let MAX_POINT_LIGHTS = 32;
+		let plCount = Math.min(this.pointLights.length, MAX_POINT_LIGHTS);
+		let colorArr = new Float32Array(MAX_POINT_LIGHTS * 3);
+		let posRangeArr = new Float32Array(MAX_POINT_LIGHTS * 4);
+		for (let i = 0; i < plCount; i++) {
+			let pl = this.pointLights[i];
+			colorArr.set([pl.color.x, pl.color.y, pl.color.z], i * 3);
+			posRangeArr.set([pl.position.x, pl.position.y, pl.position.z, pl.range], i * 4);
+		}
+		this.pointLightColorBuffer = colorArr;
+		this.pointLightPositionRangeBuffer = posRangeArr;
+		this.pointLightCount = plCount;
+
 		this.compiled = true;
 	}
 
@@ -331,6 +376,41 @@ export class Scene extends Group {
 		let { gl } = this.renderer;
 
 		this.update();
+
+		// Update ambient light buffer dynamically
+		let totalAmbientLight = new Vector3();
+		this.ambientLights.forEach(x => totalAmbientLight.add(x.color));
+		this.ambientLightBuffer = new Float32Array(totalAmbientLight.toArray());
+
+		// Update directional light buffers dynamically
+		let totalDirectionalLight = new Vector3();
+		let directionalLightDirection = new Vector3();
+		for (let light of this.directionalLights) {
+			totalDirectionalLight.add(light.color);
+			directionalLightDirection.addScaledVector(light.direction, 1 / this.directionalLights.length);
+		}
+		this.directionalLightColorBuffer = new Float32Array(totalDirectionalLight.toArray());
+		this.directionalLightDirectionBuffer = new Float32Array(directionalLightDirection.toArray());
+
+		// Update point light buffers — sort by distance to camera so the closest lights
+		// always occupy the limited shader slots (shader supports 32 total).
+		let MAX_POINT_LIGHTS = 32;
+		let camPos = camera.position;
+		let sortedLights = [...this.pointLights].sort((a, b) =>
+			a.position.distanceToSquared(camPos) - b.position.distanceToSquared(camPos)
+		);
+		let plCount = Math.min(sortedLights.length, MAX_POINT_LIGHTS);
+		let colorArr = new Float32Array(MAX_POINT_LIGHTS * 3);
+		let posRangeArr = new Float32Array(MAX_POINT_LIGHTS * 4);
+		for (let i = 0; i < plCount; i++) {
+			let pl = sortedLights[i];
+			colorArr.set([pl.color.x, pl.color.y, pl.color.z], i * 3);
+			posRangeArr.set([pl.position.x, pl.position.y, pl.position.z, pl.range], i * 4);
+		}
+		this.pointLightColorBuffer = colorArr;
+		this.pointLightPositionRangeBuffer = posRangeArr;
+		this.pointLightCount = plCount;
+
 		this.directionalLights[0]?.renderShadowMap(this);
 
 		let temp = new Vector3();
