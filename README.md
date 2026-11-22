@@ -1,5 +1,5 @@
 # Marble Blast Powered Up Web
-A Web port of Marble Blast Powered Up. The marble physics code was taken from MBWeb along with my own collision detection code, game logic was partially from scratch and taken with permission from [Marble Blast Web Port](https://github.com/Vanilagy/MarbleBlast).
+A Web port of Marble Blast Powered Up. The marble physics code was taken from MBWeb, game logic was partially from scratch and taken with permission from [Marble Blast Web Port](https://github.com/Vanilagy/MarbleBlast).
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L4L71J89I2)
 
@@ -7,7 +7,7 @@ Play it here: https://marbleblast-abhiverse.dedyn.io/<br>
 Support me on Discord: http://discordapp.com/users/1309941913956122645
 
 ## Features
-This Game is a Mod of the Original Game Marble Blast Gold. It includes almost 4000 community levels, including 150 original MBPU levels (25 Beginner, 30 Intermediate, 70 Advanced and 25 Sandbox ) and more than 3900 community custom levels. It implements all gameplay elements, sounds, music and UI/menu components from Marble Blast Powered Up - additional features include a replay system and online leaderboards. The game can be played using a keyboard, mouse, gamepad or on your mobile device.
+This Game is a Mod of the Original Game Marble Blast Gold (Powered Up). It includes 150 original MBPU levels (25 Beginner, 30 Intermediate, 70 Advanced and 25 Sandbox ). It implements all gameplay elements, sounds, music and UI/menu components from Marble Blast Powered Up - additional features include a replay system and online leaderboards. The game can be played using a keyboard, mouse, gamepad or on your mobile device.
 
 Recent additions include:
 - All 73 MBPU Challenges, with their own Challenge Select screen. Challenges can disable controls, change the camera, ban floor colors, count trapdoors instead of gems and set special qualify-time rules, just like in the original game.
@@ -38,4 +38,4 @@ Recent additions include:
 To build the game yourself, clone the repository and, with Node.js 24 or later, run `npm install`. Then run `npm run build`, which lints the code, compiles the TypeScript with [rollup](https://rollupjs.org/guide/en/) and bundles the client with [Vite](https://vite.dev/) into `dist/`. Run `npm start` to start up the server (runs on :8080 by default). For fast development run `npm run watch-fast`, or `npm run watch` for a slower, but typechecked version. `npm run check` typechecks the code without building, and `npm run lint` runs ESLint.
 
 ## Notes
-The current version only runs on the newest versions of Chromium-based browsers, Firefox and Safari, both on desktop and on mobile. Android support should be top-notch, and Safari is as best as it can be given Apple's restrictive PWA features on iOS. Additional thanks to the maintainers of [pako](https://github.com/nodeca/pako) and [jszip](https://github.com/Stuk/jszip) for making other parts of this project possible, as well as to [Vanilagy](https://github.com/Vanilagy), [RandomityGuy](https://github.com/RandomityGuy) for helping me out with parts of the code, and to the entire Marble Blast community for their feedback and support. I highly recommend you check out GarageGames's original version of Marble Blast Powered Up, as well as the game's community, here: https://marbleblast.com/
+The current version only runs on the newest versions of Chromium-based browsers, Firefox and Safari, both on desktop and on mobile. Android support should be top-notch, and Safari is as best as it can be given Apple's restrictive PWA features on iOS. Additional thanks to the maintainers of [pako](https://github.com/nodeca/pako) and [jszip](https://github.com/Stuk/jszip) for making other parts of this project possible, as well as to [Vanilagy](https://github.com/Vanilagy), [RandomityGuy](https://github.com/RandomityGuy) for helping me out with parts of the code, as well as for [Whirligig231](https://github.com/Whirligig231), the author of the game, and to the entire Marble Blast community for their feedback and support. I highly recommend you check out GarageGames's original version of Marble Blast Powered Up, as well as the game's community, here: https://marbleblast.com/
