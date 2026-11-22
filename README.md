@@ -7,10 +7,10 @@ Play it here: https://marbleblast-abhiverse.dedyn.io/<br>
 Support me on Discord: http://discordapp.com/users/1309941913956122645
 
 ## Features
-This Game is a Mod of the Original Game Marble Blast Gold (Powered Up). It includes 150 original MBPU levels (25 Beginner, 30 Intermediate, 70 Advanced and 25 Sandbox ). It implements all gameplay elements, sounds, music and UI/menu components from Marble Blast Powered Up - additional features include a replay system and online leaderboards. The game can be played using a keyboard, mouse, gamepad or on your mobile device.
+This Game is a Mod of the Original Game Marble Blast Gold (Powered Up). It includes 150 original MBPU levels (25 Beginner, 30 Intermediate, 70 Advanced and 25 Sandbox ) Plus All the Challenges branched for Beginner, Intermediate and Advanced Levels. It implements all gameplay elements, sounds, music and UI/menu components from Marble Blast Powered Up - additional features include a replay system and online leaderboards. The game can be played using a keyboard, mouse, gamepad or on your mobile device.
 
 Recent additions include:
-- All 73 MBPU Challenges, with their own Challenge Select screen. Challenges can disable controls, change the camera, ban floor colors, count trapdoors instead of gems and set special qualify-time rules, just like in the original game.
+- All 73 MBPU Challenges, with their own Challenge Select screen.
 - All 25 Sandbox levels, with tanks, propellors, buttons and gates.
 - Dynamic point lights in the renderer and shaders.
 - Options to enable or disable the effects of powerups.
