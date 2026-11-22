@@ -32,6 +32,7 @@ Recent additions include:
 <img src="./screenshots/ocean.png" width="640">
 <img src="./screenshots/thunder.png" width="640">
 <img src="./screenshots/audio.png" width="640">
+<img src="./screenshots/home.png" width="640">
 
 ## Building and developing
 To build the game yourself, clone the repository and, with Node.js 24 or later, run `npm install`. Then run `npm run build`, which lints the code, compiles the TypeScript with [rollup](https://rollupjs.org/guide/en/) and bundles the client with [Vite](https://vite.dev/) into `dist/`. Run `npm start` to start up the server (runs on :8080 by default). For fast development run `npm run watch-fast`, or `npm run watch` for a slower, but typechecked version. `npm run check` typechecks the code without building, and `npm run lint` runs ESLint.
