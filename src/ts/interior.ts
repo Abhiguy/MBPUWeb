@@ -54,7 +54,6 @@ export const specialResistutionFactor: Record<string, number> = {
 	"mmg_water": 0.0,
 	"ice1": 0.95,
 	"mmg_ice": 0.95
-	//"floor_bounce": 0.0
 };
 export const specialForces: Record<string, number> = {
 	"floor_bounce": 15
@@ -512,13 +511,11 @@ export class Interior {
 		this.body.position.copy(position);
 		this.body.orientation.copy(orientation);
 
-		// Re-apply ban from THIS mission directly — the global bannedTextures may have been
-		// reset by other missions loading in parallel, so we can't rely on it being set.
+		// Re-apply ban from THIS mission directly — the global bannedTextures may have been reset by other missions loading in parallel, so we can't rely on it being set.
 		this.applyMissionBan();
 
-		// Inject banned textures into specialForces so they use the exact same
-		// proven path as floor_bounce — no separate code paths needed.
-		for (const tex of bannedTextures) {
+		// Inject banned textures into specialForces so they use the exact same proven path as floor_bounce — no separate code paths needed.
+		for (let tex of bannedTextures) {
 			specialForces[tex] = BANNED_FORCE_MAGNITUDE;
 			specialFrictionFactor[tex] = INTERIOR_DEFAULT_FRICTION * BANNED_FRICTION_FACTOR;
 			specialResistutionFactor[tex] = INTERIOR_DEFAULT_RESTITUTION * BANNED_RESTITUTION_FACTOR;
@@ -549,7 +546,7 @@ export class Interior {
 
 		resetBan();
 
-		const info = this.level.mission.missionInfo;
+		let info = this.level.mission.missionInfo;
 		if (info?.bantype) setBanType(Number(info.bantype));
 		if (info?.bancolors) {
 			for (const color of info.bancolors.toLowerCase().split(/[\s,]+/).filter(Boolean)) {

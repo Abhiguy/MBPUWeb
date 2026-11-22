@@ -28,8 +28,7 @@ import { BlendingType } from "./rendering/renderer";
 const DEFAULT_RADIUS = 0.2;
 const ULTRA_RADIUS = 0.3;
 const MEGA_MARBLE_RADIUS = 0.6666;
-/** DTS shapes that declare more than one material (e.g. ball-madness's separate "cyan" base and
- *  "yellow" subtractive dot pattern). These should NOT have their per-material textures collapsed
+/** DTS shapes that declare more than one material These should NOT have their per-material textures collapsed
  *  down to the single marble_definitions.ts skin texture — each material needs to keep resolving
  *  to its own file by name so multi-layer patterns render correctly. */
 export const MULTI_MATERIAL_MARBLE_DTS = new Set<string>([
@@ -324,62 +323,14 @@ export class Marble {
 
 	airjumpAllowed = true;
 	airjumpsLeft = 2;
-	/** Same one-shot-per-press latch as airjumpAllowed above, but for the ground/wall-contact
-	 * special (bounce) jump in onAfterCollisionResponse. That block used to have no latch at
-	 * all -- just isPressed('jump') -- so it fired on every substep that regenerated contact
-	 * while jump was held (e.g. sliding down a wall), re-adding the uncapped +20 push and
-	 * replaying bounce_boing.wav each time. Needs its own flag, not a shared one with the
-	 * mid-air wall kick's jumpEdgeThisRealTick -- that one gets consumed by the kick first
-	 * whenever you're airborne and touching a wall, starving this block of it entirely. */
 	specialJumpAllowed = true;
 	specialJumpImpulse = 15;
-	/** Vertical component of an actual wall-contact special jump (vs. landing on the ground
-	 * shortly after touching one, which uses specialJumpImpulse above). Matches the mid-air wall
-	 * kick's own "full wall jump" vertical magnitude elsewhere in this file, for consistency
-	 * between the two wall-jump paths. The horizontal component is separate -- see
-	 * wallJumpKickStrength below. */
 	wallJumpImpulse = 15;
-	/** Horizontal kick strength for a wall-contact special jump (hug the wall, press jump a
-	 * second time while still touching it) -- matches SuperSpeed's default superSpeedStrength
-	 * (super_speed.ts) so the kick away from the wall genuinely feels like a super-speed boost,
-	 * not a light push. Applied along the wall's push direction, which now has some "up" blended
-	 * in (see wallJumpArcBlend below) rather than being purely horizontal, so this sets the total
-	 * speed of the kick, not just its sideways component. */
 	wallJumpKickStrength = 15;
-	/** How much "up" to blend into the wall-kick's own direction before applying it, so the escape
-	 * traces a genuine parabolic arc -- useful for reaching hard-to-reach platforms -- instead of a
-	 * flat shove straight out from the wall. 0 = purely horizontal (the old behavior), 1 = equal
-	 * parts up and sideways before normalizing. Blended in before normalizing, so
-	 * wallJumpKickStrength still sets the kick's total speed either way, just its direction shifts. */
 	wallJumpArcBlend = 0.5;
-	/** How far (as a multiple of the marble's own radius) to directly relocate the marble away from
-	 * the wall the instant a wall jump fires, on top of the velocity kick. Velocity alone isn't
-	 * enough to guarantee detachment: solvePosition() in collision_response.ts runs unconditionally
-	 * on whatever penetration is found on the very next tick, and in a tight corridor two opposing
-	 * wall contacts can each push back along their own normal and hold the marble in place regardless
-	 * of its velocity. Scaled to radius (rather than a flat constant) so this still works correctly
-	 * for mega marbles. Kept modest relative to the existing radius+0.15/radius+0.35 detection
-	 * margins in this file, since bypassing CCD with a raw position change carries some tunneling
-	 * risk if pushed too far in one tick. */
 	WALL_JUMP_POSITION_NUDGE_FACTOR = 0.5;
-	/** Milliseconds remaining during which airborne steering input (see the "Handle airborne
-	 * movement" branch below) is suppressed after a wall jump fires. Air control adds velocity
-	 * from held input directly to linearVelocity every tick with no cap -- if the player is still
-	 * holding the direction into the wall (natural, since that's what got them hugging it in the
-	 * first place), it silently re-injects velocity back toward the wall every tick, fighting the
-	 * kick's one-time horizontal push. It never touches the vertical axis, which is why the kick's
-	 * vertical component always visibly works while the horizontal one can get eaten. */
 	wallJumpControlLockoutTimer = 0;
 	WALL_JUMP_CONTROL_LOCKOUT = 300;
-	/** True once a plain jump has already happened during the current wall session (i.e. the player
-	 * pressed jump once already while touching/recently touching this wall). The full wall-kick
-	 * (vertical + horizontal boost) only fires on this SECOND-or-later press; the first press against
-	 * a wall is a completely ordinary jump, so the player can land/stick on a wall corner for a
-	 * moment first. Set in both the raycast-based path (onBeforeIntegrate) and the collision-based
-	 * path (onAfterCollisionResponse) so either one recognizes an already-used first press. Reset
-	 * once the wall session truly ends -- either the forgiveness window fully expires (onBeforeIntegrate)
-	 * or landing on the ground away from any wall (onAfterCollisionResponse) -- or once the kick itself
-	 * fires (onBeforeIntegrate). */
 	hasPlainJumpedAtWall = false;
 	pendingSpecialJump = false;
 	recentWallBounce = false;
@@ -400,11 +351,6 @@ export class Marble {
 	/** How long (ms) a wall must be continuously hugged before a jump press triggers a full, kicking wall jump instead of a light immediate special jump */
 	WALL_HUG_THRESHOLD_FOR_KICK = 1500;
 	lastGlueTouchTime = 0;
-
-	// ── Camera effect state ─────────────────────────────────────────────────────────────────────────────
-	// DESIGN: effects never write camera.fov / level.pitch directly. Each effect only advances ITS OWN scalar below, and
-	// updatePowerupCameraEffects() recomputes the camera from those scalars every frame. That makes any combination of
-	// powerups (and re-triggering the same one) compose correctly, and makes "reset" trivial: zero the scalars.
 
 	/** Total pitch offset (rad) this class has currently added on top of the player's own pitch. Only the DIFFERENCE to the wanted offset is ever applied, so player mouse input is never overwritten. */
 	appliedPitchOffset = 0;
@@ -441,10 +387,10 @@ export class Marble {
 	currentTexturePath = "shapes/balls/base.marble.png";
 	/** The texture path originally selected for this marble (used to restore after powerups) */
 	selectedTexturePath: string = null;
-	/** The id of the marble selected by the player (e.g. 'septic', 'madness') */
+	/** The id of the marble selected by the player */
 	selectedMarbleId = 'default';
 
-	// Orbiter marble (3 planets)
+	// Orbiter marble
 	orbiterShapes: Shape[] = [];
 	orbiterRels: Vector3[] = [];
 	orbiterAxes: Vector3[] = [];
@@ -476,8 +422,6 @@ export class Marble {
 		// Remember which marble id was selected so we can special-case certain marbles later
 		this.selectedMarbleId = state.selectedMarble || 'default';
 
-		// Convert browser-relative path './assets/data/shapes/balls/foo.png'
-		// to the internal path ResourceManager expects: 'shapes/balls/foo.png'
 		let toInternalPath = (p: string): string => {
 			const prefix = ResourceManager.mainDataPath; // e.g. './assets/data/'
 			if (p.startsWith(prefix)) return p.slice(prefix.length);
@@ -489,7 +433,7 @@ export class Marble {
 		// Get the correct texture
 		let marbleTexture: Texture;
 
-		// Simulacrum override (takes priority over marble selection)
+		// Simulacrum override
 		if (this.level.mission.title === "Simulacrum") {
 			marbleTexture = await ResourceManager.getTexture("shapes/balls/matrix.marble.png");
 		}
@@ -528,13 +472,7 @@ export class Marble {
 				m.flipY = true;
 			};
 
-			// Multi-material shapes (e.g. ball-madness.dts, which declares separate "cyan" and
-			// "yellow" materials for its base sphere color and subtractive dot pattern) need each
-			// of their DTS-declared materials to resolve to its OWN texture file by name — that's
-			// what Shape.computeMaterials() does by default when matNamesOverride is empty.
-			// Forcing every material to the single skin texture below only makes sense for shapes
-			// that have exactly one material to skin; applying it to a multi-material shape
-			// collapses all of its distinct materials down to one texture and destroys the pattern.
+			// Multi-material shapes need each of their DTS-declared materials to resolve to its OWN texture file by name — that's what Shape.computeMaterials() does by default when matNamesOverride is empty. Forcing every material to the single skin texture below only makes sense for shapes that have exactly one material to skin; applying it to a multi-material shape collapses all of its distinct materials down to one texture and destroys the pattern.
 			let isMultiMaterialShape = MULTI_MATERIAL_MARBLE_DTS.has(selectedMarbleDef.dtsPath);
 
 			if (!isMultiMaterialShape) {
@@ -547,9 +485,7 @@ export class Marble {
 			this.innerGroup.add(ballShape.group);
 			this.ballShape = ballShape;
 
-			// Some DTS files may not pick up the Proxy override in all codepaths; force-assign the
-			// loaded marbleTexture to all materials to ensure the selected texture appears.
-			// Skipped for multi-material shapes for the same reason as above.
+			// Some DTS files may not pick up the Proxy override in all codepaths; force-assign the loaded marbleTexture to all materials to ensure the selected texture appears. Skipped for multi-material shapes for the same reason as above.
 			if (!isMultiMaterialShape && marbleTexture && this.ballShape.materials) {
 				for (let m of this.ballShape.materials) {
 					m.diffuseMap = marbleTexture;
@@ -642,17 +578,14 @@ export class Marble {
 		await this.airplaneimage.init(this.level);
 		this.airplaneimage.setOpacity(0);
 		this.group.add(this.airplaneimage.group);
-		// ── Trail pools ──────────────────────────────────────────────────────────
-		// Register pool sizes into loadingState.total BEFORE loading begins so the
-		// loading bar knows the full budget upfront, then increment loaded as each
-		// shape finishes — this prevents the bar from overshooting 100%.
-		// Trail behaviour (spawn positions, opacity, scene membership) is identical
-		// to the original; only the progress accounting is new.
+		// Trail pools
 
-		// Nyan rainbow pool (always 80, regardless of marble selection)
-		const nyanCount = 80;
-		const septicCount = state.selectedMarble === 'septiceye' ? 220 : 0;
-		const jaffaCount  = state.selectedMarble === 'honeydew'  ? 200 : 0;
+		// Nyan rainbow pool
+		let nyanCount = 80;
+		// Septic goo pool
+		let septicCount = state.selectedMarble === 'septiceye' ? 220 : 0;
+		// Jaffa cake pool
+		let jaffaCount  = state.selectedMarble === 'honeydew'  ? 200 : 0;
 		this.level.loadingState.total += nyanCount + septicCount + jaffaCount;
 
 		this.nyanRainbowPool = [];
@@ -731,7 +664,7 @@ export class Marble {
 
 		await Promise.all([this.rollingSound.promise, this.slidingSound.promise, this.rollingMegaMarbleSound?.promise, this.rollingMetalSound?.promise, this.rollingPaperSound?.promise]);
 
-		// Orbiter marble: spawn 3 small orbiting planets with marble's own texture
+		// spawn 3 small orbiting planets with marble's own texture
 		if (state.selectedMarble === 'solarsystem') {
 			// Per-planet textures: Mercury, Venus, Earth
 			const planetTexturePaths = [
@@ -740,8 +673,7 @@ export class Marble {
 				'shapes/balls/blue.marble.png'
 			];
 
-			// 3 planets evenly spread 120 degrees apart on the XY plane
-			const startAngles = [0, Math.PI * 2 / 3, Math.PI * 4 / 3];
+			let startAngles = [0, Math.PI * 2 / 3, Math.PI * 4 / 3];
 			for (let i = 0; i < 3; i++) {
 				let planetTex: Texture;
 				try {
@@ -760,12 +692,12 @@ export class Marble {
 				this.level.scene.add(shape.group);
 				this.orbiterShapes.push(shape);
 
-				// Mercury=0.35, Venus=0.55, Earth=0.75 — each 120 deg apart
-				const orbitRadii = [0.5, 0.5, 0.5];
+				// orbit radii
+				let orbitRadii = [0.5, 0.5, 0.5];
 				const ang = startAngles[i];
 				const r = orbitRadii[i];
 				// Each planet orbits on a tilted plane
-				const orbitalAxes = [
+				let orbitalAxes = [
 					new Vector3(0, 0, 1),                              // Mercury: flat XY plane
 					new Vector3(0, Math.sin(Math.PI/4), Math.cos(Math.PI/4)).normalize(), // Venus: 45 deg tilt
 					new Vector3(Math.sin(Math.PI/3), 0, Math.cos(Math.PI/3)).normalize()  // Earth: 60 deg tilt
@@ -841,26 +773,13 @@ export class Marble {
 	onBeforeIntegrate(dt: number) {
 		let allowUserInput = !state.menu.finishScreen.showing;
 
-		// world.ts's substep() recurses with a strictly smaller dt than the nominal full tick whenever a
-		// CCD collision forces a split — meaning onBeforeIntegrate can run multiple times within one real
-		// tick, most often exactly when hitting a wall or the ground. Only treat this as a fresh real tick
-		// (and only recompute the jump press edge / reset per-tick guards) when dt matches the full nominal
-		// tick length; a recursive substep continuation always has a smaller dt and should reuse the same
-		// edge value instead of re-deriving it against jump's current held state.
+		// world.ts's substep() recurses with a strictly smaller dt than the nominal full tick whenever a CCD collision forces a split — meaning onBeforeIntegrate can run multiple times within one real tick, most often exactly when hitting a wall or the ground. Only treat this as a fresh real tick (and only recompute the jump press edge / reset per-tick guards) when dt matches the full nominal tick length; a recursive substep continuation always has a smaller dt and should reuse the same edge value instead of re-deriving it against jump's current held state.
 		let isRealTickStart = Math.abs(dt - 1 / PHYSICS_TICK_RATE) < 1e-6;
 		if (isRealTickStart) {
 			this.wallJumpFiredThisTick = false;
-			// FIX: level.jumpQueued is NOT a clean fresh-press signal for this purpose -- marble.ts
-			// itself rewrites it to true from the justLanded handler below ("queue a jump if space
-			// is held on landing"), which fires on ANY contactNormalUpDot > 0.5 touch. Holding jump
-			// through a wall-then-ledge-then-ground sequence re-sets jumpQueued = true on each touch
-			// with no key release involved, which this line was then misreading as a brand new press
-			// -- re-firing the wall kick repeatedly and clearing wallBounceHappened before the actual
-			// landing ever got a chance to use it. Use only the real isPressed-transition check, which
-			// reflects the physical key state and nothing marble.ts writes to itself.
 			this.jumpEdgeThisRealTick = isPressed('jump') && !this.lastJumpHeldState;
 			this.lastJumpHeldState = isPressed('jump');
-			// Jump!: the first press of the jump key uses up the mission's single jump. The jump still works on the tick of the press itself.
+			// the first press of the jump key uses up the mission's single jump. The jump still works on the tick of the press itself.
 			if (this.level.isOneJump) {
 				if (this.level.oneJumpPending) {
 					this.level.oneJumpUsed = true;
@@ -879,8 +798,8 @@ export class Marble {
 		if (isPressed('right') && !this.isControlDisabled('right')) movementVec.add(new Vector3(0, -1, 0));
 
 		// Add gamepad input and restrict if necessary
-		let analogForward = -gamepadAxes.marbleY; // positive: up, negative: down
-		let analogSide = -gamepadAxes.marbleX; // positive: left, negative: right
+		let analogForward = -gamepadAxes.marbleY;
+		let analogSide = -gamepadAxes.marbleX;
 		if (normalizedJoystickHandlePosition) {
 			analogForward -= Util.signedSquare(normalizedJoystickHandlePosition.y);
 			analogSide -= Util.signedSquare(normalizedJoystickHandlePosition.x);
@@ -960,7 +879,7 @@ export class Marble {
 			if (this.wallJumpControlLockoutTimer < 0) this.wallJumpControlLockoutTimer = 0;
 		}
 
-		// FIX: only close the special-jump window once BOTH timers have actually run out. These
+		// only close the special-jump window once BOTH timers have actually run out. These
 		// used to each clear wallBounceHappened/recentWallBounce independently the instant THEIR
 		// OWN timer hit zero -- so wallBounceTimer (200ms, only armed by a real physics bounce off
 		// the wall) would clear the flag well before wallTouchTimer's much longer 1500ms window said
@@ -985,8 +904,6 @@ export class Marble {
 			}
 		}
 
-		// Detect if we're touching a wall, and let the player kick directly off it — mirrors jump() in
-		// default.bind.cs, which fires straight off the wall raycasts with no ground contact required.
 		if (!this.isOnGround()) {
 			const directions = [
 				new Vector3(1, 0, 0),
@@ -1044,18 +961,12 @@ export class Marble {
 				}
 			}
 
-			// Track how long we've been continuously hugging a wall — kept for diagnostics, no
-			// longer gates anything (see below).
+			// Track how long we've been continuously hugging a wall — kept for diagnostics, no longer gates anything
 			if (touchedWall) this.wallHugDuration += dt * 1000;
 			else this.wallHugDuration = 0;
 
 			let wallJumpPressed = allowUserInput && this.jumpEdgeThisRealTick && !this.isControlDisabled('jump');
 			if (touchedWall && this.level.enableCustomJumpAndDash && wallJumpPressed && !this.hasPlainJumpedAtWall) {
-				// First press against this wall: a completely ordinary jump. No kick, no wall sound,
-				// no position/velocity change beyond the normal vertical impulse -- this is what lets
-				// the player stick to and stand on the wall corner for a moment first, exactly as
-				// asked for. Doesn't touch wallTouchTimer/wallBounceHappened, so the "still at this
-				// wall" window keeps counting down normally and the second press below can still see it.
 				this.setLinearVelocityInDirection(
 					this.level.currentUp,
 					this.jumpImpulse + this.body.linearVelocity.dot(this.level.currentUp),
@@ -1072,8 +983,7 @@ export class Marble {
 				this.airjumpAllowed = false;
 				this.level.jumpQueued = false;
 			} else if (touchedWall && this.level.enableCustomJumpAndDash && wallJumpPressed && this.hasPlainJumpedAtWall) {
-				// Second (or later) press during the same wall session: the full treatment -- vertical
-				// lift + horizontal push away from the wall, identified by bounce_boing.wav.
+				// give small yeet for wall jump.
 				this.setLinearVelocityInDirection(
 					this.level.currentUp,
 					this.wallJumpImpulse + this.body.linearVelocity.dot(this.level.currentUp),
@@ -1086,37 +996,14 @@ export class Marble {
 
 				if (pushDirection.lengthSq() > 0) {
 					pushDirection.normalize();
-					// Blend some "up" into the kick's own direction before applying it, so the escape
-					// traces a parabolic arc (helpful for reaching high platforms) instead of a flat
-					// shove. This happens IN the kick direction itself, not as a separate vertical call,
-					// so wallJumpKickStrength continues to set the kick's total speed either way.
 					let kickDirection = pushDirection.clone()
 						.addScaledVector(this.level.currentUp, this.wallJumpArcBlend)
 						.normalize();
-					// Override (not add to) the velocity component along the kick direction, so the
-					// result is a guaranteed outward speed regardless of whatever residual/inward
-					// velocity the marble had -- addScaledVector on top of an unknown prior state was
-					// exactly what let held steering input (or anything else) partially cancel the kick.
 					this.setLinearVelocityInDirection(kickDirection, this.wallJumpKickStrength, false);
-					// NOTE: deliberately no manual position push (pushAwayFromWall) here anymore.
-					// This runs in onBeforeIntegrate, which is BEFORE world.ts's CCD time-of-impact
-					// sweep + body.revert(t) for this same substep. revert() lerps position back
-					// toward prevPosition (captured while still embedded, via storePrevious() before
-					// this function even ran) whenever the swept path clips ANY geometry not already
-					// in inContactCcd -- exactly what happens at a corner, where escaping wall A's
-					// embedding can graze wall B. That silently undid the push the same tick it was
-					// applied. The velocity override above is NOT reverted (see rigid_body.ts's
-					// revert(): only position/orientation are touched) and isn't cancelled by
-					// solveVelocity either (that only zeroes CLOSING contacts, not separating ones),
-					// so it alone reliably carries the marble away over the next few ticks while the
-					// engine's own solvePosition -- which uses real GJK penetration depth, not a
-					// castShape sweep starting from inside the wall -- handles de-penetration.
 				}
 				this.level.audio.play('bounce_boing.wav');
 
-				// This jump already paid out its impulse, so don't also let the same key press
-				// trigger an air jump this tick, don't leave a "special jump" bonus queued for later,
-				// and don't let a later substep of this same real tick fire the wall jump again.
+				// This jump already paid out its impulse, so don't also let the same key press trigger an air jump this tick, don't leave a "special jump" bonus queued for later, and don't let a later substep of this same real tick fire the wall jump again.
 				this.wallJumpFiredThisTick = true;
 				this.jumpEdgeThisRealTick = false;
 				this.airjumpAllowed = false;
@@ -1245,20 +1132,13 @@ export class Marble {
 			}
 		}
 
-		// Auto double jump / bounce jump — mirrors testDoubleJump() in playgui.cs, where both live under
-		// one shared gate (falling + jump held + armed) and share a single latch: firing either one
-		// (or both, if conditions allow) consumes it, and only an actual ground landing re-arms it. No
-		// separate bounce-jump cooldown exists in the source, so none is added here. This whole block is
-		// level-triggered on falling velocity, separate from the edge-triggered manual air-jump above.
 		if (enableCustomJumpAndDash && this.autoDoubleJumpArmed && !this.isOnGround() && !this.wallJumpFiredThisTick
 			&& isPressed('jump') && !this.isControlDisabled('jump')
 			&& this.body.linearVelocity.dot(this.level.currentUp) < -0.1) {
-			// Snapshot once, like $marbleVelocity being read once per frame in the source — the bounce
-			// jump check below should see the pre-double-jump speed, not the value after it's modified.
 			let verticalSpeed = this.body.linearVelocity.dot(this.level.currentUp);
 			this.autoDoubleJumpArmed = false;
 
-			// Double jump: unconditional once the shared gate above is satisfied.
+			// Double jump; unconditional once the shared gate above is satisfied.
 			this.setLinearVelocityInDirection(
 				this.level.currentUp,
 				this.jumpImpulse + verticalSpeed,
@@ -1269,14 +1149,10 @@ export class Marble {
 				}
 			);
 
-			// Bounce jump: stricter on top of the shared gate above — falling considerably faster, and
-			// only right before impact. It doesn't launch you up; it amplifies the downward speed just
-			// before landing, and lets the engine's own restitution (this.shape.restitution in tick())
-			// turn that harder impact into a bigger rebound — matching AmplifySfx being an impact
-			// amplifier, not a jump sound.
+			// Bounce jump: stricter on top of the shared gate above — falling considerably faster, and only right before impact. It doesn't launch you up; it amplifies the downward speed just before landing, and lets the engine's own restitution (this.shape.restitution in tick()) turn that harder impact into a bigger rebound — matching AmplifySfx being an impact amplifier, not a jump sound.
 			if (verticalSpeed < -5) {
-				const down = this.level.currentUp.clone().multiplyScalar(-1);
-				const movement = down.clone().multiplyScalar(this.radius + 0.8);
+				let down = this.level.currentUp.clone().multiplyScalar(-1);
+				let movement = down.clone().multiplyScalar(this.radius + 0.8);
 				const hits = this.level.world.castShape(this.shape, movement, 1)
 					.filter(hit => !this.body.collisions.some(c => c && c.s2 === hit.shape)); // exclude shapes already touching (e.g. a wall pressed against), same fix as the predictedPosition filter elsewhere in this file
 				if (hits.length > 0) {
@@ -1340,7 +1216,6 @@ export class Marble {
 
 		this.lastContactNormal.copy(contactNormal);
 
-		// Viridian's Playground: pressing jump while standing on a surface flips gravity (the normal jump is disabled in the mission)
 		if (this.level.isGravityFlipJump && contactNormal.dot(this.level.currentUp) > 1e-6 && !state.menu.finishScreen.showing && isPressed('jump')) {
 			this.level.flipGravity();
 			return; // The up vector just changed, so skip the rest of this tick's collision handling
@@ -1411,37 +1286,15 @@ export class Marble {
 
 			let isWallContact = false;
 			let wallPushNormal: Vector3 | null = null;
-
-			// Search all current collisions directly for a genuinely wall-like one, independent of
-			// bestCollision/contactNormalUpDot -- that pick specifically favors the MOST ground-like
-			// contact among everything currently touching, so at a corner where a wall meets the
-			// ground (exactly the "hug wall, stand on the floor, press jump" case) it silently
-			// discards a real, current wall touch and reports this as a plain ground contact. This is
-			// what actually decides "is a wall present right now" -- previously that decision relied
-			// solely on wallBounceHappened, which is itself set from that same ground-biased value
-			// (see "Detect wall bounce" below), so a live wall touch at a corner could fail both checks
-			// for the same underlying reason.
 			let liveWallCollision = this.body.collisions.find(c =>
 				c && c.s1 === this.shape && c.normal && Math.abs(c.normal.dot(this.level.currentUp)) < 0.5
 			);
 
-			// Eligible if a wall is touching THIS INSTANT (liveWallCollision), or was touched recently
-			// enough to still be inside the forgiveness window (wallBounceHappened) even if not
-			// touching right this tick.
 			let atWall = !!(liveWallCollision || this.wallBounceHappened);
-			// FIX: previously this block never checked wallJumpFiredThisTick, so it could ALSO fire
-			// on the exact same real tick the raycast-based wall-kick (onBeforeIntegrate) already did,
-			// applying a second, different velocity change (a plain contactNormal jump) on top of
-			// whatever escape the first one started.
 			if (this.level.enableCustomJumpAndDash && this.specialJumpAllowed && atWall && !this.wallJumpFiredThisTick) {
-				// Two-press design: the full kick only fires once hasPlainJumpedAtWall is already true.
-				// That flag is normally set by the raycast-based path (onBeforeIntegrate), which doesn't
-				// need a live collision and so is the one actually reliable for catching the second
-				// press once the first press has lifted the marble slightly off the wall; this block
-				// mirrors the same rule for the rarer case where a live collision exists here but the
-				// raycasts in the other path missed it.
+				// the full kick only fires once hasPlainJumpedAtWall is already true. That flag is normally set by the raycast-based path (onBeforeIntegrate), which doesn't need a live collision and so is the one actually reliable for catching the second press once the first press has lifted the marble slightly off the wall; this block mirrors the same rule for the rarer case where a live collision exists here but the raycasts in the other path missed it.
 				if (liveWallCollision && this.hasPlainJumpedAtWall) {
-					// Second (or later) press during this wall session -> the full kick.
+					// Second (or later) press during this wall session, the full kick.
 					isWallContact = true;
 					jumpStrength = this.wallJumpImpulse;
 					wallPushNormal = liveWallCollision.normal;
@@ -1460,12 +1313,7 @@ export class Marble {
 			}
 
 			if (isWallContact && wallPushNormal) {
-				// A wall push needs two orthogonal parts, not one impulse "along the normal" --
-				// even a genuinely wall-like normal (contactNormalUpDot < 0.5) can still carry some
-				// upward component unless the wall is perfectly vertical. Flatten it out first (the
-				// same idea as SuperSpeed building a direction tangent to the last surface, rather
-				// than boosting along its normal directly) so the horizontal kick is genuinely
-				// horizontal, and apply the vertical lift separately via currentUp.
+				// A wall push needs two orthogonal parts, not one impulse "along the normal" -- even a genuinely wall-like normal (contactNormalUpDot < 0.5) can still carry some upward component unless the wall is perfectly vertical. Flatten it out first (the same idea as SuperSpeed building a direction tangent to the last surface, rather than boosting along its normal directly) so the horizontal kick is genuinely horizontal, and apply the vertical lift separately via currentUp.
 				let horizontalPush = wallPushNormal.clone()
 					.addScaledVector(this.level.currentUp, -wallPushNormal.dot(this.level.currentUp));
 				if (horizontalPush.lengthSq() > 1e-6) horizontalPush.normalize();
@@ -1480,18 +1328,12 @@ export class Marble {
 					}
 				);
 				if (horizontalPush.lengthSq() > 0) {
-					// Blend some "up" into the kick's own direction before applying it -- same reasoning
-					// as the matching change in the raycast-based wall-kick path (onBeforeIntegrate): a
-					// parabolic arc instead of a flat shove, without needing a separate vertical call.
+					// Blend some "up" into the kick's own direction before applying it.
 					let kickDirection = horizontalPush.clone()
 						.addScaledVector(this.level.currentUp, this.wallJumpArcBlend)
 						.normalize();
-					// Override, not add -- see the matching comment in the raycast-based wall-kick
-					// path (onBeforeIntegrate) for why.
+					// Override
 					this.setLinearVelocityInDirection(kickDirection, this.wallJumpKickStrength, false);
-					// NOTE: deliberately no manual position push here anymore -- see the matching
-					// comment in the raycast-based wall-kick path (onBeforeIntegrate) for the full
-					// rationale (revert() timing + solvePosition already doing this correctly).
 				}
 				this.wallJumpFiredThisTick = true;
 				this.level.audio.play('bounce_boing.wav');
@@ -1513,9 +1355,7 @@ export class Marble {
 			this.airjumpAllowed = false;
 		}
 
-		// Detect wall bounce (not ground) -- same fix as above: search collisions directly instead of
-		// trusting contactNormalUpDot, which can misreport a genuine wall hit as "ground" if something
-		// floor-like is also touching in the same instant (e.g. a wall/floor corner).
+		// Detect wall bounce (not ground)
 		let liveWallCollisionForBounce = this.body.collisions.find(c =>
 			c && c.s1 === this.shape && c.normal && Math.abs(c.normal.dot(this.level.currentUp)) < 0.5
 		);
@@ -1524,8 +1364,7 @@ export class Marble {
 			this.wallBounceTimer = this.WALL_BOUNCE_FORGIVENESS;
 			this.wallBounceHappened = true;
 		}
-		// Only clear the wall-bounce flag once the wall itself is no longer part of the picture --
-		// landing on the ground at a corner shouldn't erase a genuinely current wall touch.
+		// Only clear the wall-bounce flag once the wall itself is no longer part of the picture -- landing on the ground at a corner shouldn't erase a genuinely current wall touch.
 		if (contactNormalUpDot > 0.5 && !liveWallCollisionForBounce) {
 			this.recentWallBounce = false;
 			this.wallBounceTimer = 0;
@@ -1674,8 +1513,7 @@ export class Marble {
 		let desiredJumpImpulse = this.baseJumpImpulse ?? this.jumpImpulse;
 		if (paperActive) desiredJumpImpulse = this.baseJumpImpulse * 3;
 		else if (metalActive) desiredJumpImpulse = this.baseJumpImpulse * 0.5;
-		// Only apply if the desired powerup-driven value changed. This allows triggers or other systems
-		// to temporarily override `jumpImpulse` without being stomped each tick.
+		// Only apply if the desired powerup-driven value changed. This allows triggers or other systems to temporarily override `jumpImpulse` without being stomped each tick.
 		// If an external system has disabled jumping (e.g. no-jump trigger sets -1), respect that override
 		if (this.jumpImpulse !== -1 && this.lastAppliedPowerupJumpImpulse !== desiredJumpImpulse) {
 			this.jumpImpulse = desiredJumpImpulse;
@@ -1788,10 +1626,10 @@ export class Marble {
 			this.airplaneSound = null;
 		}
 
-		// Handle dynamic texture swapping: paper takes precedence over metal; restore original selected texture afterwards.
-		const restoreTexturePath = this.selectedTexturePath || "shapes/balls/base.marble.png";
+		// paper takes precedence over metal; restore original selected texture afterwards.
+		let restoreTexturePath = this.selectedTexturePath || "shapes/balls/base.marble.png";
 		// Some marbles (madness, madness2) should never receive the generic powerup textures
-		const skipPowerupTextureOverride = (this.selectedMarbleId === 'madness' || this.selectedMarbleId === 'madness2');
+		let skipPowerupTextureOverride = (this.selectedMarbleId === 'madness' || this.selectedMarbleId === 'madness2');
 		if (!skipPowerupTextureOverride) {
 			if (this.paper && this.currentTexturePath !== "shapes/balls/paper.marble.png") {
 				ResourceManager.getTexture("shapes/balls/paper.marble.png").then(tex => {
@@ -1837,18 +1675,18 @@ export class Marble {
 			}
 		}
 
-		// ── Marble-specific trail effects ─────────────────────────────────────────────
+		// Marble-specific trail effects
 		{
-			const marbleDef = getMarbleDefinition(state.selectedMarble || 'default');
-			const marbleName = (marbleDef?.name ?? '').toLowerCase();
-			const speed = this.body.linearVelocity.length();
-			const dt = 1000 / PHYSICS_TICK_RATE;
+			let marbleDef = getMarbleDefinition(state.selectedMarble || 'default');
+			let marbleName = (marbleDef?.name ?? '').toLowerCase();
+			let speed = this.body.linearVelocity.length();
+			let dt = 1000 / PHYSICS_TICK_RATE;
 
 			if (state.selectedMarble === 'goldenmarble') {
-				// ── Gold ──────────────────────────────────────────────────────────────
+				// Gold
 				if (speed >= 1) {
 					this.lastGoldTrailTime += dt;
-					if (this.lastGoldTrailTime >= 40) {   // ← new: only spawn every 40ms ≈ mid density
+					if (this.lastGoldTrailTime >= 40) {
 						this.lastGoldTrailTime = 0;
 						goldTrailParticleOptions.ambientVelocity = this.level.currentUp.clone().multiplyScalar(1.5);
 						this.level.particles.createEmitter(
@@ -1863,15 +1701,15 @@ export class Marble {
 				this.marbleTrailAccumTime = 0;
 
 			} else if (marbleName.includes('nyan')) {
-				// ── Nyan Cat ──────────────────────────────────────────────────────────
-				const NYAN_FADE_MS = 1800;
-				const NYAN_SPAWN_INTERVAL = 30;
-				const NYAN_SCALE = 0.45;
+				// Nyan Cat
+				let NYAN_FADE_MS = 1800;
+				let NYAN_SPAWN_INTERVAL = 30;
+				let NYAN_SCALE = 0.45;
 
 				for (const entry of this.nyanRainbowPool) {
 					if (!entry.active) continue;
-					const elapsed = this.level.timeState.timeSinceLoad - entry.fadeStart;
-					const opacity = Math.max(0, 1 - elapsed / NYAN_FADE_MS);
+					let elapsed = this.level.timeState.timeSinceLoad - entry.fadeStart;
+					let opacity = Math.max(0, 1 - elapsed / NYAN_FADE_MS);
 					entry.shape.setOpacity(opacity);
 					if (elapsed >= NYAN_FADE_MS) {
 						entry.shape.setOpacity(0);
@@ -1884,14 +1722,14 @@ export class Marble {
 					while (this.marbleTrailAccumTime >= NYAN_SPAWN_INTERVAL) {
 						this.marbleTrailAccumTime -= NYAN_SPAWN_INTERVAL;
 
-						const entry = this.nyanRainbowPool.find(e => !e.active);
+						let entry = this.nyanRainbowPool.find(e => !e.active);
 						if (entry) {
-							const velNorm = this.body.linearVelocity.clone().normalize();
-							const spawnPos = this.body.position.clone()
+							let velNorm = this.body.linearVelocity.clone().normalize();
+							let spawnPos = this.body.position.clone()
 								.addScaledVector(velNorm, -this.radius * 0.5);
 
-							const forward = new Vector3(0, 1, 0);
-							const targetQuat = velNorm.length() > 0.001
+							let forward = new Vector3(0, 1, 0);
+							let targetQuat = velNorm.length() > 0.001
 								? new Quaternion().setFromUnitVectors(forward, velNorm)
 								: new Quaternion();
 
@@ -1911,14 +1749,14 @@ export class Marble {
 				this.lastGoldTrailTime = 0;
 
 			} else if (marbleName.includes('honeydew')) {
-				// ── Jaffa Cake ────────────────────────────────────────────────────────
-				const JAFFA_FADE_MS   = 10000;
-				const JAFFA_DELETE_MS = 50000;
-				const JAFFA_INTERVAL  = 700;
+				// jaffa cakes
+				let JAFFA_FADE_MS   = 10000;
+				let JAFFA_DELETE_MS = 50000;
+				let JAFFA_INTERVAL  = 700;
 
 				for (const entry of this.jaffacakePool) {
 					if (!entry.active) continue;
-					const elapsed = this.level.timeState.timeSinceLoad - entry.spawnTime;
+					let elapsed = this.level.timeState.timeSinceLoad - entry.spawnTime;
 					entry.shape.setOpacity(Math.max(0, 1 - elapsed / JAFFA_FADE_MS));
 					if (elapsed >= JAFFA_DELETE_MS) {
 						entry.shape.setOpacity(0);
@@ -1930,14 +1768,6 @@ export class Marble {
 
 				this.marbleTrailAccumTime += dt;
 				if (this.marbleTrailAccumTime > JAFFA_INTERVAL) this.marbleTrailAccumTime = JAFFA_INTERVAL;
-
-				// Same fix as the septic goo trail: jaffa cakes are anchored in world
-				// space once spawned, so painting while riding a moving platform or
-				// elevator leaves a floating trail behind as the platform carries the
-				// marble past each dropped cake. Only paint while genuinely rolling on
-				// ground that is itself static — the floor-like normal check below
-				// mirrors isOnGround(), now paired with a check on the contact surface's
-				// own velocity plus the marble's velocity relative to it.
 				const JAFFA_MIN_ROLL_SPEED = 1;
 				const JAFFA_MAX_SURFACE_SPEED = 0.05;
 				const jaffaContact = this.body.collisions.find(c => c && c.normal && Math.abs(c.normal.dot(this.level.currentUp)) > 0.8);
@@ -1971,10 +1801,10 @@ export class Marble {
 				this.lastGoldTrailTime = 0;
 
 			} else if (state.selectedMarble === 'septiceye') {
-				// ── Septic Eye ────────────────────────────────────────────────────────
-				const GOO_FADE_MS   = 10000;
-				const GOO_DELETE_MS = 12000;
-				const GOO_INTERVAL  = 120;
+				// Septic Eye
+				let GOO_FADE_MS   = 10000;
+				let GOO_DELETE_MS = 12000;
+				let GOO_INTERVAL  = 120;
 
 				for (const entry of this.septicGooPool) {
 					if (!entry.active) continue;
@@ -1989,16 +1819,6 @@ export class Marble {
 				}
 				this.marbleTrailAccumTime += dt;
 				if (this.marbleTrailAccumTime > GOO_INTERVAL) this.marbleTrailAccumTime = GOO_INTERVAL;
-
-				// Matches original MBPU behavior: septic goo never spawns on a moving
-				// platform or elevator — only while genuinely rolling on static
-				// ground/interiors. Goo blobs are anchored in world space once spawned,
-				// so even a "correctly" rolling-triggered blob would drift into a
-				// floating trail if the contact surface keeps translating after the
-				// spawn moment (the blob stays put while the platform carries the
-				// marble past it). Requiring the surface's own velocity to be ~0 avoids
-				// that, on top of requiring the marble to actually be moving relative
-				// to the surface.
 				const GOO_MIN_ROLL_SPEED = 1;
 				const GOO_MAX_SURFACE_SPEED = 0.05;
 				const gooContact = this.body.collisions.find(c => c && c.normal);
@@ -2037,7 +1857,7 @@ export class Marble {
 				}
 				this.lastGoldTrailTime = 0;
 			} else {
-				// No trail marble — reset both accumulators
+				// No trail marble
 				this.marbleTrailAccumTime = 0;
 				this.lastGoldTrailTime = 0;
 			}
@@ -2085,15 +1905,13 @@ export class Marble {
 	 * marble never moving, even if it risks a sliver of tunneling in that edge case. Returns the
 	 * distance actually moved. */
 	pushAwayFromWall(direction: Vector3, desiredDistance: number, margin = 0.02): number {
-		const sweep = direction.clone().multiplyScalar(desiredDistance);
+		let sweep = direction.clone().multiplyScalar(desiredDistance);
 		const hits = this.level.world.castShape(this.shape, sweep, 1);
 
 		let clearDistance = desiredDistance;
 		if (hits.length > 0) clearDistance = Math.max(0, hits[0].lambda * desiredDistance - margin);
 
 		if (clearDistance < this.radius * 0.1) {
-			// Essentially no clear space found -- likely fully embedded. Do a small fixed nudge
-			// anyway rather than leaving the marble stuck with zero movement.
 			clearDistance = this.radius * this.WALL_JUMP_POSITION_NUDGE_FACTOR;
 		}
 
@@ -2213,26 +2031,23 @@ export class Marble {
 			this.sphere.opacity = Number(!this.ballShape);
 		}
 
-		// Airplane crash explosion light fade — 1.3 seconds from fiery white to black
+		// Airplane crash explosion light
 		let CRASH_LIGHT_DURATION = 1300;
 		if (this.planeCrashLight && time.timeSinceLoad < this.planeCrashTime + CRASH_LIGHT_DURATION) {
 			let progress = (time.timeSinceLoad - this.planeCrashTime) / CRASH_LIGHT_DURATION;
-			// Range fades from 6 down to 2
 			this.planeCrashLight.range = Util.lerp(15, 5, progress);
-			// Color fades from bright fiery orange (6 6 6) to black
 			this.planeCrashLight.color.set(
 				Util.lerp(6, 0, progress),
 				Util.lerp(6, 0, progress),
 				Util.lerp(6, 0, progress)
 			);
 		} else if (this.planeCrashLight && time.timeSinceLoad >= this.planeCrashTime + CRASH_LIGHT_DURATION) {
-			// Fade complete — remove from scene
+			// Fade complete
 			let index = this.level.scene.pointLights.indexOf(this.planeCrashLight);
 			if (index > -1) this.level.scene.pointLights.splice(index, 1);
 			this.planeCrashLight = null;
 		}
 
-		// Orbiter marble: update 3 orbiting planets each frame
 		if (this.orbiterShapes.length > 0) {
 			let marblePos = this.group.position;
 			let currentOri = this.body.orientation;
@@ -2243,8 +2058,7 @@ export class Marble {
 			}
 			this.orbiterPrevOrientation = currentOri.clone();
 
-			// Mercury=0.35, Venus=0.55, Earth=0.75
-			const orbitRadii = [0.5, 0.5, 0.5];
+			let orbitRadii = [0.5, 0.5, 0.5];
 			// All planets orbit fast, inner slightly faster
 			const orbitSpeeds = [0.14, 0.14, 0.14];
 			for (let i = 0; i < this.orbiterShapes.length; i++) {
@@ -2268,20 +2082,8 @@ export class Marble {
 			}
 		}
 		// Marble wears the Sunglasses, marble lives a Thug Life..!
-		// ─── ADD this field near other marble state fields (top of class) ────────────
-		// glassesOrientation: Quaternion = new Quaternion();
-		// ─────────────────────────────────────────────────────────────────────────────
-
-		// ─── INSERT in render() just before the orbiter block ────────────────────────
 		if (this.marbleGlasses) {
 			const up = this.level.currentUp.clone().normalize();
-
-			// ── Target orientation: local Y → velocity, local Z → world up ────────────
-			// (Exact replication of TorqueScript:
-			//   RotPoint(rot, "0 0 1", "0 0 1")  → aligns local Z to world Z (up)
-			//   RotPoint(rot, $marbleVelocity, "0 1 0") → aligns local Y to velocity)
-
-			// Strip vertical from velocity → purely horizontal faceDir
 			let vel = this.body.linearVelocity.clone();
 
 			let faceDir: Vector3;
@@ -2295,13 +2097,10 @@ export class Marble {
 				faceDir = new Vector3(1, 0, 0);
 			}
 
-			// Build orthonormal basis: local Y = faceDir, local Z = up, local X = faceDir × up
-			let right = new Vector3().crossVectors(faceDir, up).normalize(); // local X
-
-			// Rotation matrix columns: [right, faceDir, up]
-			let m00 = right.x,   m10 = right.y,   m20 = right.z;   // col 0 = local X
-			let m01 = faceDir.x, m11 = faceDir.y, m21 = faceDir.z; // col 1 = local Y
-			let m02 = up.x,      m12 = up.y,      m22 = up.z;      // col 2 = local Z
+			let right = new Vector3().crossVectors(faceDir, up).normalize();
+			let m00 = right.x,   m10 = right.y,   m20 = right.z;
+			let m01 = faceDir.x, m11 = faceDir.y, m21 = faceDir.z;
+			let m02 = up.x,      m12 = up.y,      m22 = up.z;
 
 			let trace = m00 + m11 + m22;
 			let targetQuat = new Quaternion();
@@ -2319,8 +2118,6 @@ export class Marble {
 				targetQuat.set((m02 + m20) / s, (m12 + m21) / s, 0.25 * s, (m10 - m01) / s);
 			}
 
-			// Smooth slerp toward target — replicates mPow(0.99, timeDelta) interpolation
-			// At ~16ms tick: factor ≈ 0.15 (matches original feel)
 			const slerpFactor = 0.15;
 			if (!this.glassesOrientation) this.glassesOrientation = targetQuat.clone();
 			this.glassesOrientation.slerp(targetQuat, slerpFactor);
@@ -2432,8 +2229,7 @@ export class Marble {
 	}
 
 	// Powerup camera effect methods.
-	// The time-driven effects (super bounce, shock absorber, gyrocopter) are detected from their enable timestamps inside
-	// updatePowerupCameraEffects(), so their enable*/disable* hooks have nothing to set up. They are kept for callers.
+
 	enableSuperJumpEffect() {
 		this.superJumpEffectActive = true;
 		this.superJumpEffectCounter = 0;
@@ -2467,20 +2263,15 @@ export class Marble {
 	/** Zoom factor the shock absorber settles at: 20 steps of mulFov(0.99), as in the original shockStartEffect. */
 	readonly SHOCK_ZOOM_TARGET = Math.pow(0.99, 20);
 
-	/** For Handling the Inventory PowerUps Camera Effects..
-	 *  Every effect only updates its own scalar; the camera (FOV + pitch) is then composed from ALL of them in one place at the end,
+	/** For Handling the Inventory PowerUps Camera Effects. Every effect only updates its own scalar; the camera (FOV + pitch) is then composed from ALL of them in one place at the end,
 	 *  so overlapping effects can never overwrite or undo each other. */
 	updatePowerupCameraEffects(time: TimeState) {
 		if (!this.level?.camera) return;
-
-		// "Disable PowerUp Effects" option (Misc tab): powerups still work, but no camera effects (FOV / pitch) are shown.
-		// The option is only changed from the menu, and every level starts with a clean camera, so there's nothing to undo here.
 		if (StorageManager.data.settings.disablePowerupEffects) return;
 
-		// Number of original 10 ms script ticks this frame represents
 		const ticks = (1000 / PHYSICS_TICK_RATE) / 10;
 
-		// ── Super Jump → pitch offset. Original: 40 ticks of -0.0125, then 100 ticks of +0.005 (net 0). Closed form of the counter. ──
+		// Super Jump
 		let superJumpOffset = 0;
 		if (this.superJumpEffectActive) {
 			const c = this.superJumpEffectCounter;
@@ -2492,8 +2283,7 @@ export class Marble {
 			}
 		}
 
-		// ── Super Speed → FOV warp. Original: 40 ticks of mulWarp(1.015^2.5), then 100 ticks of mulWarp(1/1.015) (net 1). ──
-		// Closed form: warp = 1.015^(2.5c) while c < 40, then 1.015^(140 - c). Re-triggering just restarts the curve; it can't compound.
+		// Super Speed
 		let superSpeedWarp = 1;
 		if (this.superSpeedEffectActive) {
 			const c = this.superSpeedEffectCounter;
@@ -2506,11 +2296,11 @@ export class Marble {
 		}
 		this.superSpeedWarp = superSpeedWarp;
 
-		// ── Super Bounce → ±1 degree random FOV jitter while active ──
+		// Super Bounce
 		const isSuperBounceActive = (time.currentAttemptTime - this.superBounceEnableTime < this.superBounceTime) ||
 									(time.currentAttemptTime - this.superBounceEnableTimex2 < this.superBounceTime * 2);
 
-		// ── Shock Absorber → zoom in while active, zoom out afterwards (one 0.99 step per frame, 20 steps each way) ──
+		// Shock Absorber
 		const isShockActive = (time.currentAttemptTime - this.shockAbsorberEnableTime < this.shockAbsorberTime) ||
 							(time.currentAttemptTime - this.shockAbsorberEnableTimex2 < this.shockAbsorberTime * 2);
 		if (isShockActive) this.shockEnding = false;
@@ -2530,7 +2320,7 @@ export class Marble {
 			superSpeedWarp = 1;
 		}
 
-		// ── Gyrocopter → pitch offset. Original: +0.01 per tick for 20 ticks on start, -0.01 per tick for 20 ticks on end. ──
+		// Gyrocopter
 		const isHelicopterActive = (time.currentAttemptTime - this.helicopterEnableTime < this.gyrocopterTime) ||
 									(time.currentAttemptTime - this.helicopterEnableTimex2 < this.gyrocopterTime * 2);
 		const gyroTarget = isHelicopterActive ? 0.2 : 0;
@@ -2538,19 +2328,19 @@ export class Marble {
 		if (this.gyroPitchOffset < gyroTarget) this.gyroPitchOffset = Math.min(gyroTarget, this.gyroPitchOffset + gyroStep);
 		else if (this.gyroPitchOffset > gyroTarget) this.gyroPitchOffset = Math.max(gyroTarget, this.gyroPitchOffset - gyroStep);
 
-		// ── COMPOSE PITCH: apply only the change in the total wanted offset, so the player's own pitch is preserved ──
-		const wantedPitchOffset = superJumpOffset + this.gyroPitchOffset;
+		// apply only the change in the total wanted offset, so the player's own pitch is preserved ──
+		let wantedPitchOffset = superJumpOffset + this.gyroPitchOffset;
 		if (wantedPitchOffset !== this.appliedPitchOffset) {
-			const before = this.level.pitch;
+			let before = this.level.pitch;
 			// Same bounds the level enforces on the player's pitch; track what was REALLY applied so a clamp can never cause drift
 			this.level.pitch = Math.max(-Math.PI / 2 + Math.PI / 4, Math.min(Math.PI / 2 - 0.0001, before + (wantedPitchOffset - this.appliedPitchOffset)));
 			this.appliedPitchOffset += this.level.pitch - before;
 		}
 
-		// ── COMPOSE FOV from scratch: base FOV, widened/narrowed in tan(fov/2) space by every warp, then jitter ──
-		const baseFov = this.level.getBaseFov();
+		// compose fov from scratch: base FOV, widened/narrowed in tan(fov/2) space by every warp, then jitter.
+		let baseFov = this.level.getBaseFov();
 		let fov = baseFov;
-		const zoom = superSpeedWarp * this.shockZoom;
+		let zoom = superSpeedWarp * this.shockZoom;
 		if (zoom !== 1) fov = 2 * Math.atan(Math.tan(baseFov * Math.PI / 360) * zoom) * (180 / Math.PI);
 		if (isSuperBounceActive) fov += -1 + 2 * Math.random();
 		if (this.level.camera.fov !== fov) {
@@ -2662,8 +2452,7 @@ export class Marble {
 		this.lastUseWasPressed = false;
 	}
 
-	/** Kills every powerup camera effect and snaps the FOV back to default. Never touches pitch/yaw (the level owns those on respawn).
-	 * Called from reset() and from checkpoint respawns, which do not go through reset(). */
+	/** Kills every powerup camera effect and snaps the FOV back to default. */
 	resetCameraEffects() {
 		// Like the original resetPowerupEffects(): cancel everything. Every effect is just a scalar now, so this is exhaustive.
 		this.superJumpEffectActive = false;
@@ -2675,11 +2464,10 @@ export class Marble {
 		this.shockEnding = false;
 		this.shockZoom = 1.0;
 		this.gyroPitchOffset = 0;
-		// Pitch is deliberately NOT touched: the level sets the spawn pitch itself. Just forget the offset we had applied,
-		// so it is never "un-applied" onto the freshly set spawn pitch.
+		// Pitch is deliberately NOT touched: the level sets the spawn pitch itself. Just forget the offset we had applied, so it is never "un-applied" onto the freshly set spawn pitch.
 		this.appliedPitchOffset = 0;
 
-		// FOV straight back to the known base value (the original's resetFov())
+		// FOV straight back to the known base value
 		if (this.level?.camera) {
 			this.level.camera.fov = this.level.getBaseFov();
 			this.level.camera.updateProjectionMatrix();
@@ -2695,7 +2483,7 @@ export class Marble {
 		let innerGroup = new Group();
 		group.add(innerGroup);
 
-		// Clone the sphere mesh (plain sphere, used when no ballShape)
+		// Clone the sphere mesh (plain sphere)
 		if (this.sphere) {
 			let clonedSphere = new Mesh(this.sphere.geometry, this.sphere.materials);
 			clonedSphere.scale.copy(this.sphere.scale);
@@ -2705,7 +2493,7 @@ export class Marble {
 			innerGroup.add(clonedSphere);
 		}
 
-		// Clone ballShape's meshes (DTS marble shape)
+		// Clone ballShape's meshes
 		if (this.ballShape && this.ballShape.group) {
 			for (let child of this.ballShape.group.children) {
 				if (child instanceof Mesh) {

@@ -1,7 +1,6 @@
 import { Trigger } from "./trigger";
 import { state } from "../state";
 
-/** Groundhog Day, bottom zone: the player has to reach it, then head back up. */
 export class GroundhogTrigger extends Trigger {
 	sounds = ['infotutorial.wav'];
 
@@ -14,7 +13,6 @@ export class GroundhogTrigger extends Trigger {
 	}
 }
 
-/** Groundhog Day, top zone: once the player has been to the bottom, leaving it unlocks the finish. */
 export class GroundhogTrigger2 extends Trigger {
 	sounds = ['infotutorial.wav'];
 

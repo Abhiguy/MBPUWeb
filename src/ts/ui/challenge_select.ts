@@ -31,7 +31,6 @@ export class ChallengeSelectUI {
 	bestTimeDisplay: HTMLElement;
 
 	async init() {
-		// Don't filter yet — filtering happens in openModal() once we know the selected level
 		this.missions = [];
 
 		// Restore last-selected challenge by path
@@ -109,16 +108,15 @@ export class ChallengeSelectUI {
 			this.currentLevelMission = levelMission;
 			// Filter goldChallenge to only those whose parentMission matches the selected level's filename
 			if (levelMission) {
-				// Get just the filename part of the level path e.g. "beginner/20_tornado.mis"
-				const levelPath = levelMission.path.toLowerCase();
+				// Get just the filename part of the level path
+				let levelPath = levelMission.path.toLowerCase();
 				// Extract filename without directory prefix for matching
 				const pathParts = levelPath.split('/');
-				const levelFilename = pathParts[pathParts.length - 1]; // e.g. "20_tornado.mis"
+				const levelFilename = pathParts[pathParts.length - 1];
 				const levelType = levelMission.type; // e.g. "beginner"
 				this.missions = MissionLibrary.goldChallenge.filter(m => {
 					if (!m.parentMission) return false;
 					const p = m.parentMission.toLowerCase();
-					// Match either full path "beginner/20_tornado.mis" or just filename
 					return p === levelPath || p === levelFilename || p === levelType + '/' + levelFilename;
 				});
 			} else {
@@ -157,19 +155,12 @@ export class ChallengeSelectUI {
 		mainAudioManager.play('buttonpress.wav');
 		let mission = this.missions[this.currentIndex];
 		if (mission) {
-			// challenge-modal and level-select are siblings inside #menu.
-			// Both must be explicitly hidden before loading — menu.show() after
-			// exit reveals all children that aren't hidden themselves.
 			this.modal.classList.add("hidden");
 			state.menu.levelSelect.hide();
 			state.menu.loadingScreen.loadLevel(mission);
 		}
 	}
 
-	/**
-	 * Converts the numeric difficulty field from .mis into star characters.
-	 * difficulty = "1" → ★   difficulty = "2" → ★★  etc. (capped at 5)
-	 */
 	private difficultyToStars(raw: string): string {
 		let n = parseInt(raw, 10);
 		if (isNaN(n) || n < 1) n = 1;
@@ -191,31 +182,28 @@ export class ChallengeSelectUI {
 			if (this.playBtn) { this.playBtn.src = "./assets/ui/play/play_i.png"; this.playBtn.style.pointerEvents = "none"; }
 			return;
 		}
-		// play activates with 1+ challenges; prev/next only activate with 2+ challenges
 		if (this.playBtn) { this.playBtn.src = "./assets/ui/play/play_n.png"; this.playBtn.style.pointerEvents = ""; }
-		const canNavigate = this.missions.length >= 2;
+		let canNavigate = this.missions.length >= 2;
 		if (this.prevBtn) { this.prevBtn.src = canNavigate ? "./assets/ui/play/prev_n.png" : "./assets/ui/play/prev_i.png"; this.prevBtn.style.pointerEvents = canNavigate ? "" : "none"; }
 		if (this.nextBtn) { this.nextBtn.src = canNavigate ? "./assets/ui/play/next_n.png" : "./assets/ui/play/next_i.png"; this.nextBtn.style.pointerEvents = canNavigate ? "" : "none"; }
 
 		let mission = this.missions[this.currentIndex];
 		if (!mission) return;
-
-		// Title — from missionInfo.name via Mission.fromMisFile
 		if (this.titleDisplay) this.titleDisplay.textContent = mission.title;
 
 		// Difficulty — read missionInfo.difficulty, convert to stars
 		let rawDifficulty = (mission.missionInfo as any)?.difficulty ?? "1";
 		if (this.difficultyDisplay) this.difficultyDisplay.textContent = `Difficulty: ${this.difficultyToStars(rawDifficulty)}`;
 
-		// Description — from missionInfo.desc
+		// Description
 		if (this.descDisplay) this.descDisplay.textContent = (mission.description || "").replace(/\\n/g, "\n");
 
-		// Author — from missionInfo.artist
+		// Author
 		if (this.authorDisplay) {
 			this.authorDisplay.innerHTML = `<span class="author-label">Author: </span><span class="author-name">${mission.artist || "Unknown"}</span>`;
 		}
 
-		// Best time — real score from storage keyed by mission.path
+		// Best time
 		const PLACEHOLDER = "Nardo Polo, 99:59.999";
 		try {
 			let bestTimes = StorageManager.getBestTimesForMission(mission.path, 1, "Nardo Polo");

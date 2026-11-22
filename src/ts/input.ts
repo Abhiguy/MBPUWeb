@@ -463,7 +463,6 @@ touchInputContainer.addEventListener('touchmove', (e) => {
 		let yFactor = (StorageManager.data.settings.invertMouse & 0b10)? -1 : 1;
 		let freeLook = StorageManager.data.settings.alwaysFreeLook || isPressed('freeLook');
 
-		// Yaw is gated per direction: a yaw increase turns left, a decrease turns right
 		let yawDelta = -movementX * factor;
 		if (yawDelta > 0 && level.isControlDisabled('turnLeft')) yawDelta = 0;
 		if (yawDelta < 0 && level.isControlDisabled('turnRight')) yawDelta = 0;

@@ -1,14 +1,8 @@
-/**
- * Marble Definition System
- * Defines all available marbles with their texture images
- * All marbles use the SAME physics as original marble (mass, bounce, friction, etc.)
- */
-
 export interface MarbleDefinition {
 	id: string;
 	name: string;
-	texturePath: string; // Path to marble texture image
-	dtsPath: string;     // DTS model path used in-game
+	texturePath: string;
+	dtsPath: string;
 }
 
 export const MARBLE_DEFINITIONS: { [key: string]: MarbleDefinition } = {

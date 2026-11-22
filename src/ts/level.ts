@@ -387,15 +387,10 @@ export class Level extends Scheduler {
 	leftPad = false; // Whether the marble left the main startpad or not (for competency levels)
 	padIndex = 0; // tracks current StartPad in competency levels
 	gravitySwapsUsed = 0;
-	/** Groundhog Day: set once the player has been to the bottom zone. */
 	groundhogReachedBottom = false;
-	/** Groundhog Day: while true, touching the finish pad does nothing. */
 	finishLocked = false;
-	/** Hoop.: set once the marble has used one hoop; all hoops are locked until the next respawn. */
 	hoopsLocked = false;
-	/** Jump!: set once the single allowed jump key press has been used up this attempt. */
 	oneJumpUsed = false;
-	/** Jump!: the jump key was just pressed, so the jump is used up from the next tick on. */
 	oneJumpPending = false;
 
 	analytics = {
@@ -527,10 +522,7 @@ export class Level extends Scheduler {
 			mainCanvas.classList.remove('hidden');
 		}
 	}
-	/** Returns true if this mission uses isometric view (fixed far camera, narrow FOV). */
-	isIsometric(): boolean {
-		return this.mission.missionInfo?.isometricview === '1';
-	}
+	isIsometric(): boolean { return this.mission.missionInfo?.isometricview === '1'; }
 
 	async initScene() {
 		this.scene = new Scene(mainRenderer);
@@ -688,11 +680,6 @@ export class Level extends Scheduler {
 	}
 
 	async initUi() {
-		// If this level uses tank targets instead of gems, count them as the "gem" total
-		// FIRST — hud.load() (on touch devices) reads state.level.totalGems synchronously
-		// to decide whether to offset the pause/restart/free-look buttons below the counter.
-		// If this ran after hud.load(), totalGems would still be 0 and the buttons would
-		// overlap the counter on mobile.
 		let tankTargetCount = this.shapes.filter(s => s instanceof TankTarget).length;
 		if (tankTargetCount > 0) this.totalGems = tankTargetCount;
 		if (this.isTrapDoorCount) this.totalGems = this.shapes.filter(s => s instanceof TrapDoor).length;
@@ -721,13 +708,12 @@ export class Level extends Scheduler {
 			}
 		}
 
-		// If this level uses tank targets, replace the gem icon with the target icon in the
-		// HUD overlay (totalGems is already set above, before hud.load())
+		// If this level uses tank targets, replace the gem icon with the target icon in the HUD.
 		if (tankTargetCount > 0) {
 			hudOverlayShapePaths.clear();
 			hudOverlayShapePaths.add("shapes/tank/target.dts");
 		}
-		if (this.isTrapDoorCount) hudOverlayShapePaths.add(TRAPDOOR_ICON); // No clear(): this level's power-up icons must stay
+		if (this.isTrapDoorCount) hudOverlayShapePaths.add(TRAPDOOR_ICON);
 
 		this.overlayShapes = [];
 
@@ -1147,8 +1133,7 @@ export class Level extends Scheduler {
 		this.particles.createEmitter(emitterOptions, MisParser.parseVector3(element.position));
 	}
 
-	/** Restarts and resets the level. */
-	/** The FOV the camera should have with no powerup effect active (mirrors the original's $pref::Player::defaultFov / setFov logic). */
+	/** The FOV the camera should have with no powerup effect active */
 	getBaseFov(): number {
 		if (this.mission.missionInfo?.camerafov) return MisParser.parseNumber(this.mission.missionInfo.camerafov);
 		if (this.isIsometric()) return 10;
@@ -1167,7 +1152,6 @@ export class Level extends Scheduler {
 		this.camera.fov = this.getBaseFov();
 		this.camera.updateProjectionMatrix();
 
-		// Isometric view: fixed diagonal camera angle
 		if (this.isIsometric()) {
 			this.pitch = this.mission.missionInfo?.camerapitch ? MisParser.parseNumber(this.mission.missionInfo.camerapitch) : 0.3;
 			this.yaw = Math.PI * 1.25;
@@ -1492,15 +1476,13 @@ export class Level extends Scheduler {
 			cameraVerticalTranslation.applyQuaternion(orientationQuat);
 
 			this.camera.up = up;
-			// cameraDistance: custom if set, else 100 for isometric, else 2.5 default
-			const camDist = this.mission.missionInfo?.cameradistance
+			let camDist = this.mission.missionInfo?.cameradistance
 				? MisParser.parseNumber(this.mission.missionInfo.cameradistance)
 				: this.isIsometric() ? 100 : 2.5;
 			this.camera.position.copy(marblePosition).sub(directionVector.clone().multiplyScalar(camDist));
 			this.camera.lookAt(marblePosition);
 			this.camera.position.add(cameraVerticalTranslation);
 
-			// Sailing seas: roll the camera horizon with the same sine wave as the gravity
 			if (this.mission.missionInfo?.sailingseas === '1') {
 				let sine = Math.sin(this.sailingTime * Math.PI / 2000);
 				let forward = marblePosition.clone().sub(this.camera.position).normalize();
@@ -1558,9 +1540,7 @@ export class Level extends Scheduler {
 				break;
 			}
 
-			// camerazrot (PlayGui.cameraZRot in the original): turns the camera in place around the vertical axis
-			// (position stays behind the marble, so you look away from it); movement keeps using this.yaw.
-			// Done last so the wall-collision camera adjustments above are already included.
+			// camerazrot turns the camera in place around the vertical axis (position stays behind the marble, so you look away from it); movement keeps using this.yaw. Done last so the wall-collision camera adjustments above are already included.
 			if (this.mission.missionInfo?.camerazrot) {
 				// rotate around the camera's OWN up axis (local Y), so the pitch flips along with the heading
 				let zRotQuat = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), MisParser.parseNumber(this.mission.missionInfo.camerazrot) * Math.PI / 180);
@@ -1766,7 +1746,6 @@ export class Level extends Scheduler {
 			for (let shape of this.shapes) if (!shape.isTSStatic) shape.tick(this.timeState);
 			this.marble.tick(this.timeState);
 
-			// Sailing seas: oscillate gravity vector like a ship rocking in a storm
 			if (this.mission.missionInfo?.sailingseas === '1') {
 				this.sailingTime += 1000 / PHYSICS_TICK_RATE;
 				let sine = Math.sin(this.sailingTime * Math.PI / 2000);
@@ -1976,41 +1955,18 @@ export class Level extends Scheduler {
 		return this.oldOrientationQuat.clone().slerp(this.newOrientationQuat, completion).normalize();
 	}
 
-	/** True for missions with oneuse = "1" in their MissionInfo (King of the One-Use). */
-	get isOneUse() {
-		return this.mission.missionInfo?.oneuse === '1';
-	}
+	get isOneUse() { return this.mission.missionInfo?.oneuse === '1'; }
+	get isOneJump() { return this.mission.missionInfo?.onejump === '1'; }
+	get isGravityFlipJump() { return this.mission.missionInfo?.gravityflipjump === '1'; }
 
-	/** True for missions with onejump = "1" (Jump!): only the first press of the jump key counts. */
-	get isOneJump() {
-		return this.mission.missionInfo?.onejump === '1';
-	}
-
-	/** True for missions with gravityflipjump = "1" (Viridian's Playground): pressing jump on a surface flips gravity instead. */
-	get isGravityFlipJump() {
-		return this.mission.missionInfo?.gravityflipjump === '1';
-	}
-
-	/** Flips gravity to the opposite direction and plays the flip sound. */
 	flipGravity() {
 		this.setUp(this.currentUp.clone().multiplyScalar(-1));
 		this.audio.play('vvvvvvjump.wav');
 	}
 
-	/** True for missions with onehoop = "1" (Hoop.): only one hoop can be used per attempt. */
-	get isOneHoop() {
-		return this.mission.missionInfo?.onehoop === '1';
-	}
-
-	/** True for missions with groundhog = "1" (Pipe Dreams: Groundhog Day Edition). */
-	get isGroundhog() {
-		return this.mission.missionInfo?.groundhog === '1';
-	}
-
-	/** True for missions with randompaths = "1" (Schadenfreude): pathed interiors randomly stop and restart. */
-	get isRandomPaths() {
-		return this.mission.missionInfo?.randompaths === '1';
-	}
+	get isOneHoop() { return this.mission.missionInfo?.onehoop === '1'; }
+	get isGroundhog() { return this.mission.missionInfo?.groundhog === '1'; }
+	get isRandomPaths() { return this.mission.missionInfo?.randompaths === '1'; }
 
 	/** Port of the original onStep: each pathed interior has a small chance per step to restart its path or to head back to 200 ms and stop. */
 	randomizePathedInteriors() {
@@ -2028,28 +1984,13 @@ export class Level extends Scheduler {
 		}
 	}
 
-	/** -1 for missions with invertyaw = "1" (Ordon't): left and right camera input are swapped. */
-	get yawInputSign() {
-		return this.mission.missionInfo?.invertyaw === '1' ? -1 : 1;
-	}
-
-	/** True for missions with counttrapdoors = "1" (King of the Trapdoors): every trapdoor counts as a gem. */
-	get isTrapDoorCount() {
-		return this.mission.missionInfo?.counttrapdoors === '1';
-	}
-
-	/** Trapdoors stay open once touched in both King of the One-Use and King of the Trapdoors. */
-	get trapDoorsStayOpen() {
-		return this.isOneUse || this.isTrapDoorCount;
-	}
+	get yawInputSign() { return this.mission.missionInfo?.invertyaw === '1' ? -1 : 1; }
+	get isTrapDoorCount() { return this.mission.missionInfo?.counttrapdoors === '1'; }
+	get trapDoorsStayOpen() { return this.isOneUse || this.isTrapDoorCount; }
 
 	/** Called the first time each trapdoor is touched in an attempt. */
 	registerTrapDoorHit() {
 		this.gemCount++;
-		if (this.gemCount === this.totalGems) {
-			this.audio.play('gotallgems.wav');
-			state.menu.hud.displayAlert("You have hit every trapdoor, head for the finish!", '#ffff00');
-		}
 	}
 
 	/** Called by a power-up when it's picked up. In oneuse missions, every power-up is hidden until the next respawn. */
@@ -2676,7 +2617,6 @@ export class Level extends Scheduler {
 			}
 		}
 
-		// Create exactly MAX_POINT_LIGHT_CLONES point lights.
 		// Positions will be updated each frame by updateWrapping to track the nearest clones.
 		if (this.marblePointLight) {
 			let count = Math.min(MAX_POINT_LIGHT_CLONES, this.marbleClones.length);

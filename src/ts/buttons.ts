@@ -148,11 +148,6 @@ export class ButtonGate extends Shape {
 
 	async init(level: Level, element: MissionElementStaticShape) {
 		await super.init(level, element);
-		// For backwards gates, they should start in the open (up) position
-		// which means completion should be 0 after inversion (1 - 1 = 0)
-		// So we do not set on = true here, we let the default on=false
-		// Then when button is triggered, flipGate() makes on = true
-		// But the backwards flag will invert the animation
 
 		// Initialize node 1 position
 		if (this.nodeTransforms && this.nodeTransforms.length > 1) {
@@ -204,9 +199,6 @@ export class ButtonGate extends Shape {
 	/** Gets the current completion of the gate animation. 0 = closed, 1 = open. */
 	getCurrentCompletion(time: TimeState) {
 		let elapsed = time.timeSinceLoad - this.lastStateChangeTime;
-
-		// If on (gate opening), animate from 0 to 1
-		// If off (gate closing), animate from 1 to 0
 		let completion = this.on ?
 			Util.clamp(elapsed / this.animationDuration, 0, 1) :
 			Util.clamp(1 - (elapsed / this.animationDuration), 0, 1);

@@ -81,8 +81,6 @@ export class TrapDoor extends Shape {
 		// Set the last contact time accordingly so that the trapdoor starts closing (again)
 		this.lastContactTime = time.timeSinceLoad - currentCompletion * this.animationDuration;
 		if (currentCompletion === 0) this.lastContactTime += this.timeout;
-
-		// Only now: from here on the trapdoor stays open (King of the One-Use)
 		if (this.level.trapDoorsStayOpen) this.stayOpen = true;
 
 		return true;
@@ -103,7 +101,6 @@ export class TrapDoor extends Shape {
 	reset() {
 		super.reset();
 
-		// King of the One-Use and King of the Trapdoors: trapdoors stay open during an attempt, but every respawn closes them again
 		if (this.level.trapDoorsStayOpen) {
 			let time = this.level.timeState;
 			let completion = this.getCurrentCompletion(time);
