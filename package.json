@@ -14,7 +14,7 @@
 		"check": "tsc --noEmit"
 	},
 	"author": "Vanilagy",
-	"license": "ISC",
+	"license": "MIT",
 	"engines": {
 		"node": ">=24"
 	},

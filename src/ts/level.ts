@@ -1318,20 +1318,8 @@ export class Level extends Scheduler {
 		this.outOfBounds = false;
 		this.dead = false;
 		this.audio.play('spawn.wav');
-		let startPosition: Vector3;
-		let euler: Euler;
-
-		if (this.mission.competency && this.currentCheckpoint) {
-			// Competency: use the checkpoint set by pickUpGem()
-			startPosition = this.currentCheckpoint.group.position.clone(); // There could be multiple startPads..spawning on all of them
-			euler = new Euler();
-		} else {
-			// In non competency levels...spawning on a single startPad
-			({ position: startPosition, euler } = this.getStartPositionAndOrientation());
-		}
-
-		// Respawn immediately
-		({ position: startPosition, euler } = this.getStartPositionAndOrientation());
+		// Respawn immediately at the start pad
+		let { position: startPosition, euler } = this.getStartPositionAndOrientation();
 		// Position the marble
 		this.marble.body.position.set(startPosition.x, startPosition.y, startPosition.z + 3);
 		this.marble.body.linearVelocity.setScalar(0);

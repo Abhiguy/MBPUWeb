@@ -46,7 +46,7 @@ export class SpecialTornado extends ForceShape {
 
 		if (this.chasePlayer && this.level.marble && this.level.marble.body) {
 			let dir = this.level.marble.body.position.clone().sub(this.worldPosition).normalize();
-			let speed = 1.0;
+			let speed: number;
 			let dist = this.level.marble.body.position.distanceTo(this.worldPosition);
 			if (dist < 20.0) {
 				speed = 5.0;

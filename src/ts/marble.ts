@@ -500,7 +500,7 @@ export class Marble {
 				const internalPath = toInternalPath(selectedMarbleDef.texturePath);
 				marbleTexture = await ResourceManager.getTexture(internalPath);
 				this.currentTexturePath = internalPath;
-			} catch (e) {
+			} catch {
 				// Fallback to default if selected texture fails to load
 				marbleTexture = await ResourceManager.getTexture("shapes/balls/base.marble.png");
 				this.currentTexturePath = "shapes/balls/base.marble.png";
@@ -746,7 +746,7 @@ export class Marble {
 				let planetTex: Texture;
 				try {
 					planetTex = await ResourceManager.getTexture(planetTexturePaths[i]);
-				} catch(e) {
+				} catch {
 					planetTex = marbleTexture;
 				}
 				let shape = new Shape();
