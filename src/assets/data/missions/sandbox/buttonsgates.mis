@@ -1,0 +1,349 @@
+//--- OBJECT WRITE BEGIN ---
+new SimGroup(MissionGroup) {
+
+   new ScriptObject(MissionInfo) {
+         goldTime = "90000";
+         name = "Buttons and Gates";
+         time = "0";
+         desc = "Push the other marbles onto buttons to complete this puzzle.";
+         artist = "Whirligig231";
+         level = "23";
+         music = "beach party.ogg";
+         type = "Sandbox";
+   };
+   new MissionArea(MissionArea) {
+      area = "-360 -648 720 1296";
+      flightCeiling = "300";
+      flightCeilingRange = "20";
+         locked = "true";
+   };
+   new Sky(Sky) {
+      position = "336 136 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      cloudHeightPer[0] = "0";
+      cloudHeightPer[1] = "0";
+      cloudHeightPer[2] = "0";
+      cloudSpeed1 = "0.0001";
+      cloudSpeed2 = "0.0002";
+      cloudSpeed3 = "0.0003";
+      visibleDistance = "500";
+      useSkyTextures = "1";
+      renderBottomTexture = "1";
+      SkySolidColor = "0.600000 0.600000 0.600000 1.000000";
+      fogDistance = "300";
+      fogColor = "0.600000 0.600000 0.600000 1.000000";
+      fogVolume1 = "-1 0 0";
+      fogVolume2 = "-1 0 0";
+      fogVolume3 = "-1 0 0";
+      materialList = "~/data/skies/sky_day.dml";
+      windVelocity = "1 0 0";
+      windEffectPrecipitation = "0";
+      noRenderBans = "1";
+      fogVolumeColor1 = "128.000000 128.000000 128.000000 0.000000";
+      fogVolumeColor2 = "128.000000 128.000000 128.000000 0.000000";
+      fogVolumeColor3 = "128.000000 128.000000 128.000000 0.000000";
+   };
+   new Sun() {
+      direction = "0.57735 0.57735 -0.57735";
+      color = "1.400000 1.200000 0.400000 1.000000";
+      ambient = "0.300000 0.300000 0.400000 1.000000";
+   };
+   new InteriorInstance() {
+      position = "0 0 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      interiorFile = "~/data/interiors/sandbox/buttongates.dif";
+      showTerrainInside = "0";
+   };
+   new Trigger(Bounds) {
+      position = "-65 7 -19";
+      rotation = "1 0 0 0";
+      scale = "106 96 42";
+      dataBlock = "InBoundsTrigger";
+      polyhedron = "0.0000000 0.0000000 0.0000000 1.0000000 0.0000000 0.0000000 0.0000000 -1.0000000 0.0000000 0.0000000 0.0000000 1.0000000";
+   };
+   new StaticShape(StartPoint) {
+      position = "0 0 0";
+      rotation = "0 0 1 180";
+      scale = "1 1 1";
+      dataBlock = "StartPad";
+   };
+   new StaticShape(ButtonB) {
+      position = "5 -9 -0.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateB";
+         on = "0";
+   };
+   new StaticShape(ButtonA) {
+      position = "-5 -9 -0.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateA";
+         on = "0";
+   };
+   new StaticShape(ButtonC) {
+      position = "-5 -21 -0.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateD";
+         on = "0";
+   };
+   new StaticShape(ButtonD) {
+      position = "15 -21 -8.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateB";
+         on = "0";
+   };
+   new StaticShape(ButtonF) {
+      position = "5 -33 -0.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateE";
+         on = "0";
+   };
+   new StaticShape(ButtonE) {
+      position = "-15 -33 -8.4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateD";
+         on = "0";
+   };
+   new StaticShape(ButtonG) {
+      position = "7 -57 -0.95";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateI";
+         on = "0";
+   };
+   new StaticShape(ButtonH) {
+      position = "1 -67 4.3";
+      rotation = "0 1 0 5.7001";
+      scale = "1 1 1";
+      dataBlock = "FloorButton";
+         target = "GateH";
+         on = "0";
+   };
+   new StaticShape(GateA) {
+      position = "0 -14.6 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         on = "0";
+   };
+   new StaticShape(GateB) {
+      position = "0 -15.4 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         target = "GateC";
+         on = "0";
+   };
+   new StaticShape(GateC) {
+      position = "14 -15 -8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         backwards = "1";
+         on = "0";
+   };
+   new StaticShape(GateD) {
+      position = "0 -27 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         target = "GateF";
+         on = "0";
+   };
+   new StaticShape(GateF) {
+      position = "0 -39 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         target = "GateG";
+         backwards = "1";
+         on = "0";
+   };
+   new StaticShape(GateE) {
+      position = "-14 -39 -8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         target = "GateF";
+         on = "0";
+   };
+   new StaticShape(GateG) {
+      position = "0 -51 0";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         on = "0";
+   };
+   new StaticShape(GateI) {
+      position = "-2 -73 4";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         on = "0";
+   };
+   new StaticShape(GateH) {
+      position = "9.8 -57 0";
+      rotation = "0 0 1 90";
+      scale = "1 1 1";
+      dataBlock = "ButtonGate";
+         on = "0";
+   };
+   new StaticShape() {
+      position = "-6.73089 -7.08884 0.3";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SpawnBigMarble";
+   };
+   new StaticShape() {
+      position = "6.08282 -10.6145 0.2";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SpawnPushMarble";
+   };
+   new StaticShape() {
+      position = "14.255 -22.7854 -7.7";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SpawnBigMarble";
+   };
+   new StaticShape() {
+      position = "-16.146 -35.7051 -7.7";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SpawnBigMarble";
+   };
+   new StaticShape() {
+      position = "-13.2164 -56.1014 -5.5";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SpawnBeachBallMarble";
+   };
+   new Item() {
+      position = "12 -9 -7.8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SuperJumpItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new Item() {
+      position = "12 -21 -7.8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SuperJumpItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new Item() {
+      position = "-12 -33 -7.8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SuperJumpItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new Item() {
+      position = "-12 -45 -7.8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SuperJumpItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new Item() {
+      position = "-12 -58 -5.8";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SuperJumpItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+   new StaticShape() {
+      position = "-5 -61 3";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "TrapDoor";
+         resetTime = "Default";
+         timeout = "200";
+         open = "0";
+   };
+   new StaticShape() {
+      position = "-3 -61 2";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "TrapDoor";
+         resetTime = "Default";
+         timeout = "200";
+         open = "0";
+   };
+   new StaticShape() {
+      position = "-1 -61 1";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "TrapDoor";
+         resetTime = "Default";
+         timeout = "200";
+         open = "0";
+   };
+   new StaticShape(EndPoint) {
+      position = "-2 -80 4";
+      rotation = "0 0 1 180";
+      scale = "1 1 1";
+      dataBlock = "EndPad";
+   };
+   new StaticShape() {
+      position = "-2.02415 -79.7562 11.0222";
+      rotation = "0 0 1 40";
+      scale = "1 1 1";
+      dataBlock = "SignFinish";
+   };
+   new StaticShape() {
+      position = "4 -56 4";
+      rotation = "0 0 1 90";
+      scale = "1 1 1";
+      dataBlock = "GlassPane";
+   };
+   new StaticShape() {
+      position = "4 -56 12";
+      rotation = "0 0 1 90";
+      scale = "1 1 1";
+      dataBlock = "GlassPane";
+   };
+   new ScriptObject() {
+         time = "0";
+         penaltyTime = "0";
+         gemCount = "0";
+         powerUp = "0";
+         bonusTime = "0";
+         pad = "1790";
+   };
+   new Item() {
+      position = "5.87378 -53.9064 0.669598";
+      rotation = "1 0 0 0";
+      scale = "1 1 1";
+      dataBlock = "SkillPointItem";
+      collideable = "0";
+      static = "1";
+      rotate = "1";
+   };
+};
+//--- OBJECT WRITE END ---

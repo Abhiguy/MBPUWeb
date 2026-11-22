@@ -20,22 +20,14 @@ export class Metal extends PowerUp {
 	}
 
 	use() {
-		this.level.marble.enableMetal(this.level.timeState, this.metalTime); // Gee..flexible metal duration
+		// Only enable the metal timer/state on the marble; marble.tick() will observe this and apply effects
+		this.level.marble.enableMetal(this.level.timeState, this.metalTime);
 		this.isActive = true;
-		this.level.marble.jumpImpulse *= 0.5; // Metal powerup halves the jump impulse
-		this.level.marble.metal = true;
-		// Schedule deactivation after 5 seconds (5000 ms) or override
-		setTimeout(() => {
-			this.level.marble.metal = false;
-			this.level.marble.jumpImpulse = 7.3; // Restore jump impulse
-			this.isActive = false;
-		}, this.metalTime);
-
 		this.level.deselectPowerUp();
 	}
 	reset() {
 		this.level.marble.metal = false; // Pronbably the metal effect on marble is vanished if respawn
-		this.level.marble.jumpImpulse = 7.3; // Restore jump impulse
+		this.level.marble.jumpImpulse = this.level.marble.baseJumpImpulse; // Restore jump impulse
 		this.isActive = false; // Reset the metal if it were active and respawned
 		this.lastPickUpTime = null; // Force available on restart
 	}

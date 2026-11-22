@@ -3,6 +3,7 @@ import { Util } from "../util";
 import { TimeState } from "../level";
 import { Vector3 } from "../math/vector3";
 import { BlendingType } from "../rendering/renderer";
+import { PointLight } from "../rendering/point_light";
 
 /** Land mines explode on contact and knock the marble away. */
 export class LandMine extends Shape {
@@ -10,14 +11,7 @@ export class LandMine extends Shape {
 	disappearTime = -Infinity;
 	sounds = ['explode1.wav'];
 	shareMaterials = false;
-	proximityBased = false;
-	/**
-	 *
-	 */
-	constructor(useProximity: boolean) {
-		super();
-		this.proximityBased = useProximity;
-	}
+	explosionLight: PointLight;
 
 	onMarbleContact() {
 		let time = this.level.timeState;
@@ -39,7 +33,7 @@ export class LandMine extends Shape {
 		this.level.particles.createEmitter(landMineParticle, this.worldPosition);
 		this.level.particles.createEmitter(landMineSmokeParticle, this.worldPosition);
 		this.level.particles.createEmitter(landMineSparksParticle, this.worldPosition);
-		// Normally, we would add a light here, but eh.
+		this.explosionLight = this.level.triggerExplosionEffect(this.worldPosition);
 
 		this.level.replay.recordMarbleContact(this);
 	}
@@ -69,15 +63,17 @@ export class LandMine extends Shape {
 		let opacity = Util.clamp((time.timeSinceLoad - (this.disappearTime + 5000)) / 1000, 0, 1);
 		this.setOpacity(opacity);
 
-		if (this.proximityBased) {
-			// Only visible if you are close enough
-			let dist = this.level.marble.body.position.distanceTo(this.worldPosition);
-			if (dist < 10.0) {
-				this.setOpacity(1);
+		if (this.explosionLight && time.timeSinceLoad < this.disappearTime + 1500) {
+			let elapsed = time.timeSinceLoad - this.disappearTime;
+			let progress = elapsed / 1500;
+			this.explosionLight.range = Util.lerp(35, 15, progress);
+			this.explosionLight.color.copy(new Vector3(Util.lerp(10, 0, progress), Util.lerp(10, 0, progress), Util.lerp(10, 0, progress)));
+		} else if (this.explosionLight && time.timeSinceLoad >= this.disappearTime + 1500) {
+			let index = this.level.scene.pointLights.indexOf(this.explosionLight);
+			if (index > -1) {
+				this.level.scene.pointLights.splice(index, 1);
 			}
-			else {
-				this.setOpacity(0);
-			}
+			this.explosionLight = null;
 		}
 	}
 }

@@ -54,7 +54,7 @@ const SONGS = {
 	'xmas trance.ogg': 'Xmas Trance',
 	'low key.ogg': 'Low KeY',
 	'cookout.ogg': 'CookouT',
-	'summer gathering.ogg': 'Summer GAthering',
+	'summer gathering.ogg': 'Summer GAthering'
 };
 
 class Jukebox {

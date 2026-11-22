@@ -1,0 +1,143 @@
+/** ============================================================
+ *  Marble Selector — Button + Modal (Gold screen)
+ * ============================================================ */
+
+/* ─────────────────────────────────
+ * SELECTOR BUTTON (level select)
+ * Now a canvas, animated by JavaScript
+ * ───────────────────────────────── */
+#mbp-marble-selector-button {
+	display: block;
+	position: absolute;
+	top: 190px;
+	left: -38px;
+	width: 200px;
+	height: 200px;
+	border-radius: 50%;
+	cursor: inherit;
+	z-index: 10;
+}
+#mbp-marble-selector-button:active { opacity: 0.75; }
+
+
+/* ─────────────────────────────────
+ * MODAL OVERLAY — transparent, just centers
+ * ───────────────────────────────── */
+#mbp-marble-selector-modal {
+	position: absolute;
+	inset: 0;
+	z-index: 2000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+#mbp-marble-selector-modal.hidden { display: none; }
+.mbp-marble-modal-window { pointer-events: all; }
+
+
+/* ─────────────────────────────────────────────────────────────
+ * MODAL WINDOW
+ * playgui.png is 610×351 — we scale to ~75% → 458×263
+ * via a CSS scale so all absolute positions stay the same
+ * ───────────────────────────────────────────────────────────── */
+.mbp-marble-modal-window {
+	position: relative;
+	width:  610px;
+	height: 351px;
+	transform: scale(0.75);
+	transform-origin: center center;
+	animation: modal-pop 0.18s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes modal-pop {
+	from { transform: scale(0.65); opacity: 0; }
+	to   { transform: scale(0.75); opacity: 1; }
+}
+
+.mbp-marble-modal-bg {
+	position: absolute;
+	top: 0; left: 0;
+	width: 610px;
+	height: 351px;
+	pointer-events: none;
+	display: block;
+}
+
+
+/* ─────────────────────────────────
+ * MARBLE NAME — centered top
+ * ───────────────────────────────── */
+#mbp-marble-modal-name {
+	position: absolute;
+	top: 38px;
+	left: 0;
+	width: 610px;
+	text-align: center;
+	font-family: DomCasualRegular, 'Comic Sans MS', cursive;
+	font-size: 40px;
+	color: #000;
+	pointer-events: none;
+}
+
+
+/* ─────────────────────────────────
+ * MARBLE PREVIEW
+ * Wrapper centers it; the img itself spins.
+ * Keeping transform on img only so centering
+ * on the wrapper is not affected.
+ * ───────────────────────────────── */
+#mbp-marble-preview-wrap {
+	position: absolute;
+	top:  -168px;
+	left: 7%;
+	transform: translateX(-50%);
+	width:  148px;
+	height: 148px;
+	pointer-events: none;
+}
+#mbp-marble-modal-preview {
+	width:  148px;
+	height: 148px;
+	object-fit: contain;
+	border-radius: 50%;
+	display: block;
+	animation: marble-spin 5s linear infinite;
+}
+
+
+
+
+
+/* ─────────────────────────────────
+ * BUTTONS — Prev, Buy, Use, Next
+ * Spaced across the bottom button row
+ * No glow, no fade — just swap src on hover/down
+ * ───────────────────────────────── */
+#mbp-marble-prev-btn,
+#mbp-marble-buy-btn,
+#mbp-marble-confirm-btn,
+#mbp-marble-next-btn {
+	position: absolute;
+	top: 245px;
+	display: block;
+	z-index: 69;
+	vertical-align: bottom;
+	cursor: inherit; /* inherits cur_3darrow.png from body */
+}
+
+#mbp-marble-prev-btn    { left: 80px;  width: 108px; height: auto; }
+#mbp-marble-buy-btn     { left: 202px; width: 108px; height: auto; }
+#mbp-marble-confirm-btn { left: 325px; width: 108px; height: auto; }
+#mbp-marble-next-btn    { left: 445px; width: 103px; height: auto; top: 250px; }
+
+
+/* ── Mobile scale ── */
+@media (max-width: 500px) {
+	.mbp-marble-modal-window {
+		transform: scale(0.48);
+	}
+	@keyframes modal-pop {
+		from { transform: scale(0.38); opacity: 0; }
+		to   { transform: scale(0.48); opacity: 1; }
+	}
+}

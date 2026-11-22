@@ -1,20 +1,40 @@
 import { AudioSource, mainAudioManager } from "../audio";
-import { currentMousePosition } from "../input";
+import { blastButton, currentMousePosition, jumpButton, useButton } from "../input";
 import { ResourceManager } from "../resources";
-import { StorageManager } from "../storage";
+import { StorageData, StorageManager } from "../storage";
 import { Util } from "../util";
 import { Menu } from "./menu";
 import { SCALING_RATIO } from "./misc";
 import { OptionsScreen } from "./options";
 
+/** Size (in unscaled UI pixels) of the sliders added to the Misc tab. Must match options.css (.misc-slider). */
+const MISC_TRACK_WIDTH = 150;
+const MISC_KNOB_WIDTH = 22;
+const MISC_TRACK_SRC = './assets/ui/options/aud_mus_slide.png';
+
 export class MbgOptionsScreen extends OptionsScreen {
 	tabGraphics: HTMLImageElement;
 	tabAudio: HTMLImageElement;
 	tabControls: HTMLImageElement;
+	tabMisc: HTMLImageElement;
 
 	graphicsDiv: HTMLDivElement;
 	audioDiv: HTMLDivElement;
 	controlsDiv: HTMLDivElement;
+	miscDiv: HTMLDivElement;
+
+	disablePowerupEffects: HTMLImageElement;
+
+	/** Container for the FOV and touch control rows in the Misc tab. */
+	miscScroll: HTMLDivElement;
+	/** Functions that refresh each Misc row from the stored settings. */
+	miscUpdateFuncs: (() => void)[] = [];
+	/** While a Misc slider is being dragged, this updates it from the current mouse position. */
+	miscDragging: (() => void) | null = null;
+	/** The bar images of all Misc sliders. */
+	miscTrackImages: HTMLImageElement[] = [];
+	/** Which part of the slider bar image (as fractions of its width) holds the actual bar. The image has "Music Volume" text on its left, which is cropped away. Refined by detectMiscTrackCrop(). */
+	miscTrackCrop = { start: 0.33, end: 1 };
 
 	resolution640: HTMLImageElement;
 	resolution800: HTMLImageElement;
@@ -84,12 +104,8 @@ export class MbgOptionsScreen extends OptionsScreen {
 	freeLookKey: HTMLImageElement;
 	freeLookKeyContent: HTMLParagraphElement;
 
-	chooseMarbleTexture: HTMLImageElement;
-	resetMarbleTexture: HTMLImageElement;
-
 	buttonRestartLevel: HTMLImageElement;
 	buttonRestartLevelContent: HTMLParagraphElement;
-	reflectiveMarbleCheckbox: HTMLImageElement;
 
 	initProperties() {
 		this.div = document.querySelector('#options');
@@ -106,10 +122,14 @@ export class MbgOptionsScreen extends OptionsScreen {
 		this.tabGraphics = document.querySelector('#tab-graphics') as HTMLImageElement;
 		this.tabAudio = document.querySelector('#tab-audio') as HTMLImageElement;
 		this.tabControls = document.querySelector('#tab-controls') as HTMLImageElement;
+		this.tabMisc = document.querySelector('#tab-misc') as HTMLImageElement;
 
 		this.graphicsDiv = document.querySelector('#options-graphics') as HTMLDivElement;
 		this.audioDiv = document.querySelector('#options-audio') as HTMLDivElement;
 		this.controlsDiv = document.querySelector('#options-controls') as HTMLDivElement;
+		this.miscDiv = document.querySelector('#options-misc') as HTMLDivElement;
+		this.disablePowerupEffects = document.querySelector('#misc-disable-powerup-effects') as HTMLImageElement;
+		this.miscScroll = document.querySelector('#misc-scroll') as HTMLDivElement;
 
 		this.resolution640 = document.querySelector('#graphics-640') as HTMLImageElement;
 		this.resolution800 = document.querySelector('#graphics-800') as HTMLImageElement;
@@ -172,12 +192,8 @@ export class MbgOptionsScreen extends OptionsScreen {
 		this.freeLookKey = document.querySelector('#free-look-key') as HTMLImageElement;
 		this.freeLookKeyContent = document.querySelector('#free-look-key-content') as HTMLParagraphElement;
 
-		this.chooseMarbleTexture = document.querySelector('#graphics-marble-texture-choose') as HTMLImageElement;
-		this.resetMarbleTexture = document.querySelector('#graphics-marble-texture-reset') as HTMLImageElement;
-
 		this.buttonRestartLevel = document.querySelector('#button-restart-level') as HTMLImageElement;
 		this.buttonRestartLevelContent = document.querySelector('#button-restart-level-content') as HTMLParagraphElement;
-		this.reflectiveMarbleCheckbox = document.querySelector('#graphics-reflective-marble') as HTMLImageElement;
 	}
 
 	constructor(menu: Menu) {
@@ -212,10 +228,12 @@ export class MbgOptionsScreen extends OptionsScreen {
 		menu.setupButton(this.graphicsApply, 'options/grafapply', () => {});
 
 		const handler = () => {
-			if (!this.draggingMusicVolume && !this.draggingSoundVolume && !this.draggingMouseSensitivity) return;
 
 			// Release all dragging things
-			this.draggingMusicVolume = this.draggingSoundVolume = this.draggingMouseSensitivity = false;
+			this.draggingMusicVolume = false;
+			this.draggingSoundVolume = false;
+			this.draggingMouseSensitivity = false;
+			this.miscDragging = null;
 			StorageManager.store();
 
 			if (this.soundTestingSound) {
@@ -286,30 +304,263 @@ export class MbgOptionsScreen extends OptionsScreen {
 
 		menu.setupButton(this.freeLookKey, 'options/cntrl_mous_bttn', () => this.changeKeybinding('freeLook'));
 
-		menu.setupButton(this.chooseMarbleTexture, 'options/cntr_cam_up', async () => {
-			await this.showMarbleTexturePicker();
-			this.setResetMarbleTextureState(true);
-		});
-		menu.setupButton(this.resetMarbleTexture, 'options/cntr_cam_dwn', () => {
-			StorageManager.databaseDelete('keyvalue', 'marbleTexture');
-			this.setResetMarbleTextureState(false);
-		});
-
 		menu.setupButton(this.buttonRestartLevel, 'options/cntr_cam_dwn', () => this.changeKeybinding('restart'));
 
-		menu.setupButton(this.reflectiveMarbleCheckbox, 'options/cntrl_mous_freel', () => {
-			StorageManager.data.settings.marbleReflectivity = (!this.reflectiveMarbleCheckbox.hasAttribute('data-locked'))? 2 : 0;
+		// Misc tab: "Disable PowerUp Effects" checkbox (same graphics as the shadows checkbox)
+		menu.setupButton(this.disablePowerupEffects, 'options/graf_chkbx', () => {
+			const checked = !this.disablePowerupEffects.hasAttribute('data-locked');
+			StorageManager.data.settings.disablePowerupEffects = checked;
 			StorageManager.store();
+			this.setDisablePowerupEffectsVisual(checked, true);
+		});
 
-			// Toggle the checkbox
-			if (!this.reflectiveMarbleCheckbox.hasAttribute('data-locked')) {
-				this.reflectiveMarbleCheckbox.setAttribute('data-locked', '');
-				this.reflectiveMarbleCheckbox.src = './assets/ui/options/cntrl_mous_freel_d.png';
+		this.buildMiscRows();
+		this.detectMiscTrackCrop();
+	}
+
+	/** Builds the FOV + touch control rows of the Misc tab. */
+	buildMiscRows() {
+		this.addMiscSlider('fov', 'Field of View', 30, 120, 1, x => (x | 0).toString());
+
+		this.addMiscHeading('Touch Controls');
+		this.addMiscSlider('joystickSize', 'Joystick Size', 100, 500, 1, x => (x | 0).toString());
+		this.addMiscSlider('joystickLeftOffset', 'Joystick Left Offset', 0, 300, 1, x => (x | 0).toString());
+		this.addMiscSlider('joystickVerticalPosition', 'Joystick Vertical Pos', 0, 1, 0, x => Math.floor(100 * x) + '%');
+		// The stored value is an index into all permutations of Blast/Jump/Use (shared with the MBP screen). This port has no blast button,
+		// so only two choices are offered. Jump - Use is the original side-by-side layout (Blast - Jump - Use: Use left, Jump right);
+		// Use - Jump is the stacked layout (Use - Jump - Blast: Use on top of Jump).
+		let permutations = Util.getPermutations(['Blast', 'Jump', 'Use']).map(x => x.join(' - '));
+		let jumpUseValue = permutations.indexOf('Blast - Jump - Use');
+		let useJumpValue = permutations.indexOf('Use - Jump - Blast');
+		// Old saves (or the earlier version of this dropdown) can hold other permutations, e.g. "Jump - Use - Blast", which the touch layout
+		// in hud.ts shows stacked. Convert any stored value into one of the two valid ones: Use before Jump -> "Use - Jump", else "Jump - Use".
+		const normalizeOrder = () => {
+			let settings = StorageManager.data?.settings;
+			if (!settings) return 0;
+			let order = permutations[Number(settings.actionButtonOrder)]?.split(' - ') ?? [];
+			let choice = order.indexOf('Use') < order.indexOf('Jump') ? 1 : 0;
+			let value = choice === 1 ? useJumpValue : jumpUseValue;
+			if (settings.actionButtonOrder !== value) {
+				settings.actionButtonOrder = value as never;
+				StorageManager.store();
+			}
+			return choice;
+		};
+		// Places the touch buttons right away, with the same slots hud.ts uses when a level loads, so the choice shows up without a restart.
+		// The slots are: 0 = above the bottom right one, 1 = bottom right, 2 = left of the bottom right one.
+		const applyButtonOrder = (value: number) => {
+			let buttons: Record<string, HTMLElement | undefined> = { Blast: blastButton, Jump: jumpButton, Use: useButton };
+			let offsets = [{ right: 0, bottom: 135 }, { right: 0, bottom: 0 }, { right: 135, bottom: 0 }];
+			(permutations[value] ?? '').split(' - ').forEach((name, i) => {
+				let button = buttons[name];
+				if (!button) return;
+				button.style.right = offsets[i].right + 'px';
+				button.style.bottom = offsets[i].bottom + 'px';
+			});
+		};
+		normalizeOrder();
+		applyButtonOrder(StorageManager.data?.settings ? Number(StorageManager.data.settings.actionButtonOrder) : jumpUseValue);
+		this.addMiscDropdown('actionButtonOrder', 'Button Order', [
+			{ label: 'Jump - Use', value: jumpUseValue },
+			{ label: 'Use - Jump', value: useJumpValue }
+		], () => normalizeOrder(), applyButtonOrder);
+		this.addMiscSlider('actionButtonSize', 'Button Size', 50, 300, 1, x => (x | 0).toString());
+		this.addMiscSlider('actionButtonRightOffset', 'Button Right Offset', 0, 300, 1, x => (x | 0).toString());
+		this.addMiscSlider('actionButtonBottomOffset', 'Button Bottom Offset', 0, 300, 1, x => (x | 0).toString());
+		this.addMiscSlider('actionButtonAsJoystickMultiplier', 'Button Sensitivity Fac', 0, 3, 0.1, x => x.toFixed(1));
+	}
+
+	addMiscHeading(label: string) {
+		let heading = document.createElement('div');
+		heading.classList.add('misc-heading');
+		heading.textContent = label;
+		this.miscScroll.appendChild(heading);
+	}
+
+	/** Scales/shifts every Misc slider bar image so that only the bar part (no text) is visible, MISC_TRACK_WIDTH wide. */
+	applyMiscTrackCrop() {
+		let { start, end } = this.miscTrackCrop;
+		for (let img of this.miscTrackImages) {
+			if (!img.naturalWidth) continue;
+			let width = MISC_TRACK_WIDTH / (end - start);
+			let height = width * img.naturalHeight / img.naturalWidth;
+			img.style.width = width + 'px';
+			img.style.height = height + 'px';
+			img.style.left = (-start * width) + 'px';
+			(img.parentElement as HTMLElement).style.height = height + 'px';
+		}
+	}
+
+	/** Finds the bar inside the slider image by looking for the widest run of non-empty pixel columns (the text is made of narrow runs). Falls back to the default crop if that doesn't work. */
+	async detectMiscTrackCrop() {
+		try {
+			let image = new Image();
+			image.src = MISC_TRACK_SRC;
+			await image.decode();
+
+			let canvas = document.createElement('canvas');
+			canvas.width = image.naturalWidth;
+			canvas.height = image.naturalHeight;
+			let context = canvas.getContext('2d');
+			context.drawImage(image, 0, 0);
+			let data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+			let bestStart = 0, bestLength = 0, runStart = -1;
+			for (let x = 0; x <= canvas.width; x++) {
+				let filled = false;
+				if (x < canvas.width) {
+					for (let y = 0; y < canvas.height; y++) {
+						if (data[(y * canvas.width + x) * 4 + 3] > 24) { filled = true; break; }
+					}
+				}
+				if (filled && runStart === -1) runStart = x;
+				if (!filled && runStart !== -1) {
+					if (x - runStart > bestLength) { bestStart = runStart; bestLength = x - runStart; }
+					runStart = -1;
+				}
+			}
+
+			// If the widest run starts at the very left, the text and the bar are touching and can't be told apart this way, so keep the default crop
+			if (bestLength > 0 && bestStart / canvas.width > 0.05) {
+				this.miscTrackCrop = { start: bestStart / canvas.width, end: (bestStart + bestLength) / canvas.width };
+				this.applyMiscTrackCrop();
+			}
+		} catch (e) {
+			console.warn('Could not detect the slider bar in the image, using the default crop.', e);
+		}
+	}
+
+	/** Adds a "label  number  slider" row for a numeric setting. A step of 0 means no rounding. */
+	addMiscSlider(setting: keyof StorageData['settings'], label: string, min: number, max: number, step: number, format: (value: number) => string) {
+		let row = document.createElement('div');
+		row.classList.add('misc-row');
+
+		let name = document.createElement('span');
+		name.classList.add('misc-row-label');
+		name.textContent = label + ':';
+
+		let value = document.createElement('span');
+		value.classList.add('misc-row-value');
+
+		let slider = document.createElement('div');
+		slider.classList.add('misc-slider');
+		let clip = document.createElement('div');
+		clip.classList.add('misc-track-clip');
+		let track = document.createElement('img');
+		track.src = MISC_TRACK_SRC;
+		track.addEventListener('load', () => this.applyMiscTrackCrop());
+		clip.appendChild(track);
+		this.miscTrackImages.push(track);
+		let knob = document.createElement('img');
+		knob.classList.add('misc-knob');
+		knob.src = './assets/ui/options/aud_mus_knb.png';
+		slider.append(clip, knob);
+
+		row.append(name, value, slider);
+		this.miscScroll.appendChild(row);
+
+		const refresh = () => {
+			let current = StorageManager.data.settings[setting] as number;
+			let completion = Util.clamp((current - min) / (max - min), 0, 1);
+			knob.style.left = Math.round(completion * (MISC_TRACK_WIDTH - MISC_KNOB_WIDTH)) + 'px';
+			value.textContent = format(current);
+		};
+		// Same mouse math as the other sliders in this screen
+		const setFromMouse = () => {
+			let leftStart = slider.getBoundingClientRect().left * SCALING_RATIO;
+			let completion = Util.clamp((currentMousePosition.x - leftStart - MISC_KNOB_WIDTH / 2) / (MISC_TRACK_WIDTH - MISC_KNOB_WIDTH), 0, 1);
+			let result = Util.lerp(min, max, completion);
+			if (step > 0) result = Number((Math.round(result / step) * step).toFixed(6));
+			StorageManager.data.settings[setting] = result as never;
+			refresh();
+		};
+		const start = () => {
+			this.miscDragging = setFromMouse;
+			setFromMouse();
+		};
+		slider.addEventListener('mousedown', start);
+		slider.addEventListener('touchstart', start);
+
+		this.miscUpdateFuncs.push(refresh);
+	}
+
+	/** Adds a "label  dropdown" row for a setting that stores the index of the chosen option. */
+	/** @param choices The options to show and the value each one stores. @param selectedChoice Maps the stored value to the index of the choice to show as selected. */
+	addMiscDropdown(setting: keyof StorageData['settings'], label: string, choices: { label: string, value: number }[], selectedChoice: (stored: number) => number, onChoose?: (value: number) => void) {
+		let row = document.createElement('div');
+		row.classList.add('misc-row');
+
+		let name = document.createElement('span');
+		name.classList.add('misc-row-label');
+		name.textContent = label + ':';
+
+		let spacer = document.createElement('span');
+		spacer.classList.add('misc-row-value');
+
+		let wrapper = document.createElement('div');
+		wrapper.classList.add('misc-dropdown');
+
+		let selectionLabel = document.createElement('div');
+		selectionLabel.classList.add('misc-dropdown-label');
+
+		let list = document.createElement('div');
+		list.classList.add('misc-dropdown-list', 'hidden');
+		list.style.backgroundImage = "url('./assets/ui/play/playgui.png')";
+
+		const close = () => list.classList.add('hidden');
+
+		// The button graphic is the same one the "camera down" key binding uses
+		let button = document.createElement('img');
+		this.menu.setupButton(button, 'options/cntr_cam_dwn', () => {
+			if (list.classList.contains('hidden')) {
+				list.classList.remove('hidden');
+				list.scrollIntoView({ block: 'nearest' }); // The list can reach below the visible part of the scrolling area
 			} else {
-				this.reflectiveMarbleCheckbox.removeAttribute('data-locked');
-				this.reflectiveMarbleCheckbox.src = './assets/ui/options/cntrl_mous_freel_h.png';
+				close();
 			}
 		});
+
+		choices.forEach(choice => {
+			let item = document.createElement('div');
+			item.textContent = choice.label;
+			item.addEventListener('mousedown', () => {
+				close();
+				selectionLabel.textContent = choice.label;
+				if (StorageManager.data.settings[setting] !== choice.value) {
+					StorageManager.data.settings[setting] = choice.value as never;
+					StorageManager.store();
+				}
+				onChoose?.(choice.value); // Runs even when the value was already stored, so a stale layout always gets fixed
+			});
+			list.appendChild(item);
+		});
+
+		// Clicking anywhere else closes the list
+		const outside = (e: Event) => {
+			if (!wrapper.contains(e.target as Node)) close();
+		};
+		window.addEventListener('mousedown', outside);
+		window.addEventListener('touchstart', outside);
+
+		wrapper.append(button, selectionLabel, list);
+		row.append(name, spacer, wrapper);
+		this.miscScroll.appendChild(row);
+
+		this.miscUpdateFuncs.push(() => {
+			close();
+			selectionLabel.textContent = choices[selectedChoice(Number(StorageManager.data.settings[setting]))].label;
+		});
+	}
+
+	/** Updates only the checkbox's look/lock state; does not touch stored settings. */
+	setDisablePowerupEffectsVisual(checked: boolean, hovered = false) {
+		if (checked) {
+			this.disablePowerupEffects.setAttribute('data-locked', '');
+			this.disablePowerupEffects.src = './assets/ui/options/graf_chkbx_d.png';
+		} else {
+			this.disablePowerupEffects.removeAttribute('data-locked');
+			this.disablePowerupEffects.src = './assets/ui/options/graf_chkbx_' + (hovered ? 'h' : 'n') + '.png';
+		}
 	}
 
 	show() {
@@ -323,6 +574,7 @@ export class MbgOptionsScreen extends OptionsScreen {
 		this.setupTab(this.tabGraphics, 'graphics');
 		this.setupTab(this.tabAudio, 'audio');
 		this.setupTab(this.tabControls, 'controls');
+		this.setupTab(this.tabMisc, 'misc');
 		// Default selection
 		this.selectControlsTab('marble');
 		this.selectTab('graphics');
@@ -344,29 +596,30 @@ export class MbgOptionsScreen extends OptionsScreen {
 
 		this.refreshKeybindings();
 
+		// !! so saves from before this setting existed (undefined) count as unchecked
+		this.setDisablePowerupEffectsVisual(!!StorageManager.data.settings.disablePowerupEffects);
+		for (let refresh of this.miscUpdateFuncs) refresh();
+
 		if (!!(StorageManager.data.settings.invertMouse & 0b10) !== this.invertY.hasAttribute('data-locked')) this.invertY.click();
 		if (StorageManager.data.settings.alwaysFreeLook !== this.alwaysFreeLook.hasAttribute('data-locked')) this.alwaysFreeLook.click();
-		if ((StorageManager.data.settings.marbleReflectivity === 2) !== this.reflectiveMarbleCheckbox.hasAttribute('data-locked')) this.reflectiveMarbleCheckbox.click();
-
-		this.setResetMarbleTextureState(!((await StorageManager.databaseCount('keyvalue', 'marbleTexture')) === 0));
 	}
 
-	selectTab(which: 'graphics' | 'audio' | 'controls') {
-		for (let elem of [this.tabGraphics, this.tabAudio, this.tabControls]) {
+	selectTab(which: 'graphics' | 'audio' | 'controls' | 'misc') {
+		for (let elem of [this.tabGraphics, this.tabAudio, this.tabControls, this.tabMisc]) {
 			elem.style.zIndex = "-1";
 		}
-		for (let elem of [this.graphicsDiv, this.audioDiv, this.controlsDiv]) {
+		for (let elem of [this.graphicsDiv, this.audioDiv, this.controlsDiv, this.miscDiv]) {
 			elem.classList.add('hidden');
 		}
 
-		let index = ['graphics', 'audio', 'controls'].indexOf(which);
+		let index = ['graphics', 'audio', 'controls', 'misc'].indexOf(which);
 
-		let elem = [this.tabGraphics, this.tabAudio, this.tabControls][index];
+		let elem = [this.tabGraphics, this.tabAudio, this.tabControls, this.tabMisc][index];
 		elem.style.zIndex = "0";
-		[this.graphicsDiv, this.audioDiv, this.controlsDiv][index].classList.remove('hidden');
+		[this.graphicsDiv, this.audioDiv, this.controlsDiv, this.miscDiv][index].classList.remove('hidden');
 	}
 
-	setupTab(element: HTMLImageElement, which: 'graphics' | 'audio' | 'controls') {
+	setupTab(element: HTMLImageElement, which: 'graphics' | 'audio' | 'controls' | 'misc') {
 		element.addEventListener('mousedown', (e) => {
 			if (e.button !== 0) return;
 			mainAudioManager.play('buttonpress.wav');
@@ -477,6 +730,8 @@ export class MbgOptionsScreen extends OptionsScreen {
 			this.mouseSensitivityKnob.style.left = Math.floor(this.mouseSensitivityKnobLeft + completion * this.trackLength) + 'px';
 			StorageManager.data.settings.mouseSensitivity = completion;
 		}
+
+		if (this.miscDragging) this.miscDragging();
 	}
 
 	selectControlsTab(which: 'marble' | 'camera' | 'mouse') {
@@ -513,19 +768,5 @@ export class MbgOptionsScreen extends OptionsScreen {
 		this.buttonCameraDownContent.textContent = this.formatKeybinding('cameraDown');
 		this.freeLookKeyContent.textContent = this.formatKeybinding('freeLook');
 		this.buttonRestartLevelContent.textContent = this.formatKeybinding('restart');
-	}
-
-	setResetMarbleTextureState(enabled: boolean) {
-		if (enabled) {
-			this.resetMarbleTexture.style.pointerEvents = '';
-			this.resetMarbleTexture.style.filter = '';
-			(document.querySelector('#graphics-marble-texture-reset-text') as HTMLDivElement).style.opacity = '';
-		} else {
-			// Make it all grayed out and things
-			this.resetMarbleTexture.style.pointerEvents = 'none';
-			this.resetMarbleTexture.style.filter = 'saturate(0)';
-			this.resetMarbleTexture.src = './assets/ui/options/cntr_cam_dwn_n.png';
-			(document.querySelector('#graphics-marble-texture-reset-text') as HTMLDivElement).style.opacity = '0.7';
-		}
 	}
 }

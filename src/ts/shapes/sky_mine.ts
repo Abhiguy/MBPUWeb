@@ -4,6 +4,7 @@ import { PHYSICS_TICK_RATE, TimeState } from "../level";
 import { Vector3 } from "../math/vector3";
 import { BlendingType } from "../rendering/renderer";
 import { MissionElementStaticShape, MisParser } from "../parsing/mis_parser";
+import { PointLight } from "../rendering/point_light";
 
 /** Sky mines explode on contact and knock the marble away. */
 export class SkyMine extends Shape {
@@ -15,25 +16,19 @@ export class SkyMine extends Shape {
 	startPosition: Vector3;
 	endPosition: Vector3;
 	customOffset: Vector3;
-	moveT = 0; // 0=start, 1=end
-	moveSpeed: number; // units per second
-	moveDirection = 1; // 1=forward, -1=backward
+	moveT = 0;
+	moveSpeed: number;
+	moveDirection = 1;
+	explosionLight: PointLight;
 
 	constructor(element: MissionElementStaticShape) {
 		super();
 		this.mover = element._name === "Mover";
 
-		// Parse custom offsets from the .mis file, default to 0 if not set
 		if (element.my_x)
-			this.customOffset = new Vector3(
-				MisParser.parseNumber(element.my_x),
-				MisParser.parseNumber(element.my_y),
-				MisParser.parseNumber(element.my_z)
-			);
+			this.customOffset = new Vector3(MisParser.parseNumber(element.my_x),MisParser.parseNumber(element.my_y),MisParser.parseNumber(element.my_z));
 		else
 			this.customOffset = new Vector3(0, 0, 0);
-
-		// Parse moveSpeed from .mis file, default to 2 if not set
 		this.moveSpeed = element.myspeed ? MisParser.parseNumber(element.myspeed) : 2;
 	}
 
@@ -73,7 +68,7 @@ export class SkyMine extends Shape {
 		this.level.particles.createEmitter(skyMineParticle, this.worldPosition);
 		this.level.particles.createEmitter(skyMineSmokeParticle, this.worldPosition);
 		this.level.particles.createEmitter(skyMineSparksParticle, this.worldPosition);
-		// Normally, we would add a light here, but eh.
+		this.explosionLight = this.level.triggerExplosionEffect(this.worldPosition);
 
 		this.level.replay.recordMarbleContact(this);
 	}
@@ -99,12 +94,11 @@ export class SkyMine extends Shape {
 		this.setCollisionEnabled(visible);
 
 		// Moving Sky Mines...
-		const moveSpeed = this.moveSpeed; // units per second
+		let moveSpeed = this.moveSpeed;
 		let distance = this.startPosition.distanceTo(this.endPosition);
 		if (distance > 0) {
 			this.moveT += (moveSpeed / distance) * this.moveDirection / PHYSICS_TICK_RATE;
 
-			// Ping-pong motion: reverse at ends
 			if (this.moveT > 1) {
 				this.moveT = 1;
 				this.moveDirection = -1;
@@ -125,6 +119,18 @@ export class SkyMine extends Shape {
 	render(time: TimeState) {
 		let opacity = Util.clamp((time.timeSinceLoad - (this.disappearTime + 5000)) / 1000, 0, 1);
 		this.setOpacity(opacity);
+		if (this.explosionLight && time.timeSinceLoad < this.disappearTime + 1500) {
+			let elapsed = time.timeSinceLoad - this.disappearTime;
+			let progress = elapsed / 1500;
+			this.explosionLight.range = Util.lerp(35, 15, progress);
+			this.explosionLight.color.copy(new Vector3(Util.lerp(10, 0, progress), Util.lerp(10, 0, progress), Util.lerp(10, 0, progress)));
+		} else if (this.explosionLight && time.timeSinceLoad >= this.disappearTime + 1500) {
+			let index = this.level.scene.pointLights.indexOf(this.explosionLight);
+			if (index > -1) {
+				this.level.scene.pointLights.splice(index, 1);
+			}
+			this.explosionLight = null;
+		}
 	}
 
 	reset() {

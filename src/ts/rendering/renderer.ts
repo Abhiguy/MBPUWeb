@@ -193,6 +193,33 @@ export class Renderer {
 			gl.uniform3fv(program.getUniformLocation('directionalLightDirection'), scene.directionalLightDirectionBuffer);
 			gl.uniformMatrix4fv(program.getUniformLocation('directionalLightTransform'), false, scene.directionalLightTransformBuffer);
 
+			gl.uniform3fv(program.getUniformLocation('pointLightColor'), scene.pointLightColorBuffer);
+			gl.uniform4fv(program.getUniformLocation('pointLightPositionRange'), scene.pointLightPositionRangeBuffer);
+			gl.uniform1i(program.getUniformLocation('pointLightCount'), scene.pointLightCount);
+			// We cast to any or check for the property if your Scene class doesn't have it explicitly typed yet
+			const explosion = (scene as any).explosionEffect;
+
+			if (explosion && explosion.active) {
+				gl.uniform1i(program.getUniformLocation('useExplosion'), 1);
+				gl.uniform3f(
+					program.getUniformLocation('explosionPosition'),
+					explosion.position.x, explosion.position.y, explosion.position.z
+				);
+				gl.uniform1f(program.getUniformLocation('explosionRadius'), explosion.radius);
+				gl.uniform3f(
+					program.getUniformLocation('explosionColor'),
+					explosion.color.r, explosion.color.g, explosion.color.b
+				);
+				gl.uniform1f(program.getUniformLocation('explosionOpacity'), explosion.explosionOpacity || 1.0);
+
+				// We assign Texture Unit 6 for the falloff texture
+				gl.uniform1i(program.getUniformLocation('falloffTexture'), 6);
+				this.bindTexture(explosion.falloffTexture?.getGLTexture(this), 6, gl.TEXTURE_2D);
+			} else {
+				// Crucial to disable it so other objects don't "remember" the last explosion
+				gl.uniform1i(program.getUniformLocation('useExplosion'), 0);
+			}
+
 			gl.uniform1i(program.getUniformLocation('meshInfos'), 7);
 			this.bindTexture(scene.meshInfoTexture, 7, gl.TEXTURE_2D);
 
@@ -243,7 +270,7 @@ export class Renderer {
 
 			if (material.blending === BlendingType.Normal) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // Premultiplied alpha
 			else if (material.blending === BlendingType.Additive) gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-			else if (material.blending === BlendingType.Subtractve) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // I actually dunno if this one's correct
+			else if (material.blending === BlendingType.Subtractve) gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR); // Matches TGE's Subtractive material: dst = dst * (1 - src.rgb)
 
 			gl.depthMask(material.depthWrite);
 
@@ -305,15 +332,19 @@ export class Renderer {
 
 			if (options.blending === BlendingType.Normal) gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); // No premultiplied alpha
 			else if (options.blending === BlendingType.Additive) gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-			else if (options.blending === BlendingType.Subtractve) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+			else if (options.blending === BlendingType.Subtractve) gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR); // Matches TGE's Subtractive material: dst = dst * (1 - src.rgb)
 
 			// Bind uniforms describing the particle simulation
 			gl.uniform1f(program.getUniformLocation('acceleration'), group.uniforms.acceleration);
 			gl.uniform1f(program.getUniformLocation('spinSpeed'), group.uniforms.spinSpeed);
 			gl.uniform1f(program.getUniformLocation('dragCoefficient'), group.uniforms.dragCoefficient);
+			gl.uniform1f(program.getUniformLocation('gravityCoefficient'), group.uniforms.gravityCoefficient);
+			gl.uniform1f(program.getUniformLocation('flatBillboard'), group.uniforms.flatBillboard);
 			gl.uniform4fv(program.getUniformLocation('times'), group.uniforms.times);
 			gl.uniform4fv(program.getUniformLocation('sizes'), group.uniforms.sizes);
 			gl.uniformMatrix4fv(program.getUniformLocation('colors'), false, group.uniforms.colors);
+			gl.uniform3fv(program.getUniformLocation('emitterCenter'), group.uniforms.emitterCenter);
+			gl.uniform3fv(program.getUniformLocation('gravityDir'), group.uniforms.gravityDir);
 
 			program.bindVertexBuffer(group.vertexBuffer);
 			gl.drawElements(gl.TRIANGLES, 6 * group.particles.length, gl.UNSIGNED_INT, 0);

@@ -29,7 +29,7 @@ export class Tornado extends ForceShape {
 		this.soundSource = this.level.audio.createAudioSource(this.sounds[0], undefined, this.worldPosition);
 		if (this.level.mission.quietTornados) {
 			this.soundSource.gainFactor = 1; // Original Marble Blast Tornado Volume
-			this.soundSource.maxDistance = 30; // Original Marble Blast Tornado Volume 
+			this.soundSource.maxDistance = 30; // Original Marble Blast Tornado Volume
 		}
 		else {
 			this.soundSource.gainFactor = 2; // MBPU have a feature...The tornado's sound is much louder than the original Marble Blast
@@ -52,6 +52,7 @@ export class Tornado extends ForceShape {
 		}
 		// Freeze tornado completely if stopwatch is active
 		if (this.level.stopWatchActive) return;
+		if (this.level.paused) return;
 
 		super.tick(time, onlyVisual);
 

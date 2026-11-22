@@ -20,7 +20,10 @@ uniform float dragCoefficient;
 uniform vec4 times;
 uniform vec4 sizes;
 uniform mat4 colors;
-
+uniform float gravityCoefficient;
+uniform vec3 gravityDir;
+uniform vec3 emitterCenter;
+uniform float flatBillboard;
 varying vec2 vUv;
 varying float vFragDepth;
 varying float vIsPerspective;
@@ -56,16 +59,24 @@ void main() {
     float elapsed = time - particleSpawnTime;
     float completion = clamp(elapsed / particleLifetime, 0.0, 1.0);
 
+    // Kill the particle if its time is up
     if (completion >= 1.0) {
-        gl_Position = vec4(0.0);
+        gl_Position = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
+    // 1. PHYSICS CALCULATION
+    // We calculate where the particle is RIGHT NOW in world space.
     float velElapsed = elapsed / 1000.0;
-    velElapsed = pow(velElapsed, 1.0 - dragCoefficient);
+    float dragFactor = pow(velElapsed, 1.0 - dragCoefficient);
 
-    vec3 computedPosition = particlePosition + particleVelocity * (velElapsed + acceleration * velElapsed * velElapsed * 0.5);
-    float rotation = particleInitialSpin + spinSpeed * elapsed / 1000.0;
+    // This is the moving center of the particle
+    vec3 computedPosition = emitterCenter + particlePosition 
+        + particleVelocity * (dragFactor + acceleration * dragFactor * dragFactor * 0.5)
+        + gravityDir * gravityCoefficient * 20.0 * dragFactor * dragFactor * 0.5;
+
+    // 2. ROTATION & INTERPOLATION
+    float rotation = particleInitialSpin + (spinSpeed * elapsed / 1000.0);
 
     int indexLow = 0;
     int indexHigh = 1;
@@ -82,14 +93,13 @@ void main() {
 
     color = mix(accessDynamically(colors, indexLow), accessDynamically(colors, indexHigh), t);
     color.a = pow(color.a, 1.5);
+    
+    vUv = uv;
+    vIsPerspective = isPerspectiveMatrix(projectionMatrix) ? 1.0 : 0.0;
 
-    vec4 viewPosition = viewMatrix * vec4(computedPosition, 1.0);
-
-    vec2 scale = vec2(1.0);
-    scale *= mix(accessDynamically(sizes, indexLow), accessDynamically(sizes, indexHigh), t);
-
-    // Clamp scale to avoid disappearing quads on mobile GPUs
-    scale = max(scale, vec2(0.01));
+    // 3. SCALE & QUAD ALIGNMENT
+    vec2 scale = vec2(mix(accessDynamically(sizes, indexLow), accessDynamically(sizes, indexHigh), t));
+    scale = max(scale, vec2(0.01)); // Prevent zero-size flickering
 
     vec2 center = vec2(0.5, 0.5);
     vec2 alignedPosition = (position - (center - vec2(0.5))) * scale;
@@ -97,9 +107,20 @@ void main() {
     vec2 rotatedPosition;
     rotatedPosition.x = cos(rotation) * alignedPosition.x - sin(rotation) * alignedPosition.y;
     rotatedPosition.y = sin(rotation) * alignedPosition.x + cos(rotation) * alignedPosition.y;
-    viewPosition.xy += rotatedPosition;
 
-    gl_Position = projectionMatrix * viewPosition;
+    // 4. THE POSITIONING LOGIC (The Fix)
+    if (flatBillboard > 0.5) {
+        // LAY FLAT: Take the moving center and offset the corners on the WORLD XY plane.
+        // This keeps it pinned to the ground even if the camera moves.
+        vec3 worldPos = computedPosition + vec3(rotatedPosition.x, rotatedPosition.y, 0.0);
+        gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+    } else {
+        // STANDARD BILLBOARD: Face the camera.
+        // We project the moving center into view space first, then offset the corners.
+        vec4 viewPosition = viewMatrix * vec4(computedPosition, 1.0);
+        viewPosition.xy += rotatedPosition;
+        gl_Position = projectionMatrix * viewPosition;
+    }
 
     vUv = uv;
 

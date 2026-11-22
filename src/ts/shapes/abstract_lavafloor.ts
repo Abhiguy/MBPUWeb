@@ -66,7 +66,7 @@ const lavaemitter = {
 		sizes: [0.25, 0.25, 1],
 		times: [0, 0.25, 1]
 	}
-}
+};
 
 export const lavafloorParticleOptions = {
 	ejectionPeriod: 5,

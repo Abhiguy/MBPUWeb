@@ -23,6 +23,8 @@ export abstract class PowerUp extends Shape {
 	customPickUpAlert: string = null;
 	/** If 'an' should be used instead of 'a' in the pickup alert. */
 	an = false;
+	/** Set by the level in "oneuse" missions: this power-up is hidden and can't be picked up until the next restart. */
+	hiddenByLevel = false;
 
 	constructor(element: MissionElementItem) {
 		super();
@@ -31,7 +33,7 @@ export abstract class PowerUp extends Shape {
 
 	onMarbleInside(t: number) {
 		let time = this.level.timeState;
-
+		if (this.hiddenByLevel) return;
 		let pickupable = this.lastPickUpTime === null || (time.currentAttemptTime - this.lastPickUpTime) >= this.cooldownDuration;
 		if (!pickupable) return;
 
@@ -46,6 +48,7 @@ export abstract class PowerUp extends Shape {
 
 			let body = this.bodies[0];
 			body.enabled = false;
+			this.level.registerOneUsePickup();
 		}
 	}
 
@@ -67,6 +70,7 @@ export abstract class PowerUp extends Shape {
 			let availableTime = this.lastPickUpTime + this.cooldownDuration;
 			opacity = Util.clamp((time.currentAttemptTime - availableTime) / 1000, 0, 1);
 		}
+		if (this.hiddenByLevel) opacity = 0;
 
 		this.setOpacity(opacity);
 	}
@@ -77,6 +81,7 @@ export abstract class PowerUp extends Shape {
 		let body = this.bodies[0];
 		body.enabled = true;
 		this.lastPickUpTime = null;
+		this.hiddenByLevel = false;
 	}
 
 	/** If this function returns true, the pickup was successful. */

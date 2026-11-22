@@ -15,16 +15,16 @@ export class Gem extends Shape {
 	startPosition: Vector3;
 	endPosition: Vector3;
 	customOffset: Vector3;
-	moveT = 0; // 0=start, 1=end
-	moveSpeed: number; // units per second
-	moveDirection = 1; // 1=forward, -1=backward
+	moveT = 0;
+	moveSpeed: number;
+	moveDirection = 1;
 	dtsPath = "shapes/items/gem.dts";
 	ambientRotate = true;
 	collideable = false;
 	pickedUp = false;
 	lastPickUpTime: number | null = null; // Gems would respawn in backward clock levels
 	shareMaterials = false;
-	gemColor: string; // The color of the gem, used for scoring
+	gemColor: string;
 	showSequences = false; // Gems actually have an animation for the little shiny thing, but the actual game ignores that. I get it, it was annoying as hell.
 	sounds = ['gotgem.wav', 'gotallgems.wav', 'missinggems.wav'];
 
@@ -43,20 +43,13 @@ export class Gem extends Shape {
 		this.matNamesOverride["base.gem"] = color.toLowerCase() + ".gem";
 		this.mover = element._name === "Mover";
 
-		// Parse custom offsets from the .mis file, default to 0 if not set
 		if (element.my_x)
-			this.customOffset = new Vector3(
-				MisParser.parseNumber(element.my_x),
-				MisParser.parseNumber(element.my_y),
-				MisParser.parseNumber(element.my_z)
-			);
+			this.customOffset = new Vector3(MisParser.parseNumber(element.my_x),MisParser.parseNumber(element.my_y),MisParser.parseNumber(element.my_z));
 		else
 			this.customOffset = new Vector3(0, 0, 0);
 
 		if (!this.mover)
 			this.mover = this.customOffset.length() > 0;
-
-		// Parse moveSpeed from .mis file, default to 2 if not set
 		if (element.myspeed)
 			this.moveSpeed = MisParser.parseNumber(element.myspeed);
 		else
@@ -76,13 +69,13 @@ export class Gem extends Shape {
 
 	tick(time: TimeState, onlyVisual = false) {
 		super.tick(time, onlyVisual);
+		if (this.level.paused) return;
 		if (this.mover) {
 			const moveSpeed = this.moveSpeed; // units per second
 			let distance = this.startPosition.distanceTo(this.endPosition);
 			if (distance > 0) {
 				this.moveT += (moveSpeed / distance) * this.moveDirection / PHYSICS_TICK_RATE;
 
-				// Ping-pong motion: reverse at ends
 				if (this.moveT > 1) {
 					this.moveT = 1;
 					this.moveDirection = -1;
@@ -117,36 +110,28 @@ export class Gem extends Shape {
 		this.level.replay.recordMarbleInside(this);
 		this.setCollisionEnabled(false);
 
-		// Respawn for  only backwardClock levels
 		if (this.level.mission.backwardClock) {
 			this.lastPickUpTime = this.level.timeState.currentAttemptTime;
 
 			setTimeout(() => {
 				this.pickedUp = false;
 				this.setCollisionEnabled(true);
-				// Fade-in will be handled in render()
 			}, 5000); // Respawn after 5 seconds
 		}
 	}
 
-	// Note that the gem's respawning logic will only for levels which have backwardclock flag in the mis...
 	render(time: TimeState) {
 		super.render(time);
 
-		// If the gem is picked up and not yet respawned, hide it completely
 		if (this.pickedUp) {
 			this.setOpacity(0);
 			return;
 		}
-
 		let opacity = 1;
-
-		// Only apply fade-in respawn visual effect in backwardClock levels
 		if (this.level.mission.backwardClock && this.lastPickUpTime && this.pickedUp === false) {
 			let availableTime = this.lastPickUpTime + 5000; // Match respawn time
 			opacity = Util.clamp((time.currentAttemptTime - availableTime) / 1000, 0, 1);
 		}
-
 		this.setOpacity(opacity);
 	}
 

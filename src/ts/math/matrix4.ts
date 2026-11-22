@@ -912,11 +912,11 @@ export class Matrix4 {
 	}
 
 	getTranslation(out: Vector3): Vector3 {
-	out.x = this.elements[12];
-	out.y = this.elements[13];
-	out.z = this.elements[14];
-	return out;
-}
+		out.x = this.elements[12];
+		out.y = this.elements[13];
+		out.z = this.elements[14];
+		return out;
+	}
 }
 
 const _v1 = new Vector3();

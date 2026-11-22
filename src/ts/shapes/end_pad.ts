@@ -57,7 +57,7 @@ export class EndPad extends Shape {
 		let firework = new Firework(this.level, this.worldPosition, time.timeSinceLoad, padUp);
 		this.fireworks.push(firework);
 
-		this.level.audio.play(this.sounds[0], 1, undefined, this.worldPosition);
+		this.level.audio.play(this.sounds[0]);
 	}
 
 	tick(time: TimeState, onlyVisual: boolean) {
@@ -236,7 +236,8 @@ export const blueSpark = {
 export interface Trail {
 	type: 'red' | 'blue',
 	smokeEmitter: ParticleEmitter,
-	targetPos: Vector3,
+	/** Initial velocity vector of the rocket (units/sec). */
+	velocity: Vector3,
 	spawnTime: number,
 	lifetime: number
 }
@@ -255,7 +256,7 @@ export class Firework extends Scheduler {
 		super();
 
 		this.level = level;
-		this.pos = pos;
+		this.pos = pos.clone().add(upDir.clone().multiplyScalar(0.32)); // Yeet Slightly Up..The real feel..
 		this.spawnTime = spawnTime;
 		this.upDir = upDir;
 
@@ -268,12 +269,15 @@ export class Firework extends Scheduler {
 
 		// Update the trails
 		for (let trail of this.trails.slice()) {
-			let completion = Util.clamp((time - trail.spawnTime) / trail.lifetime, 0, 1);
-			completion = 1 - (1 - completion) ** 2; // ease-out
+			let t = (time - trail.spawnTime) / 1000; // seconds elapsed
+			let completion = Util.clamp(t / (trail.lifetime / 1000), 0, 1);
 
-			// Make the trail travel along an arc (parabola, whatever)
-			let pos = this.pos.clone().multiplyScalar(1 - completion).add(trail.targetPos.clone().multiplyScalar(completion));
-			pos.sub(this.upDir.clone().multiplyScalar(completion ** 2)); // move slightly down along upDir parabola
+			//  p = start + v*t - 0.5*g*t^2
+			// gravModifier = 0.05, scaled to match game units (gravity ~20)
+			let gravAccel = 20 * 0.05; // 1.0 units/sec^2 along upDir
+			let pos = this.pos.clone()
+				.add(trail.velocity.clone().multiplyScalar(t))
+				.sub(this.upDir.clone().multiplyScalar(0.5 * gravAccel * t * t));
 			trail.smokeEmitter.setPos(pos, time);
 
 			if (completion === 1) {
@@ -306,30 +310,31 @@ export class Firework extends Scheduler {
 	spawnTrail(time: number) {
 		let type: 'red' | 'blue' = (Math.random() < 0.5) ? 'red' : 'blue';
 
-		let lifetime = 250 + Math.random() * 2000;
-		let distanceFac = 0.5 + lifetime / 5000; // Make sure the firework doesn't travel a great distance way too quickly
+		// lifetime 1.1-1.9s, velocity 2-3 units/sec
+		let lifetime = 1100 + Math.random() * 800; // debris lifetime 1.5 +/- 0.4s
+		let speed = 2.5 + Math.random() * 0.5;     // debrisVelocity 3 +/- 0.5
 		let emitter = this.level.particles.createEmitter((type === 'red') ? redTrail : blueTrail, this.pos);
 
-		// Generate random 2D direction in a circle as before
-		let randomPointInCircle = Util.randomPointInUnitCircle();
-
-		// Create two perpendicular vectors to upDir for the circle plane
+		// Build two tangent axes perpendicular to upDir for the hemisphere
 		let arbitrary = new Vector3(1, 0, 0);
 		if (Math.abs(this.upDir.dot(arbitrary)) > 0.9) arbitrary = new Vector3(0, 1, 0);
 		let tangent1 = new Vector3().crossVectors(this.upDir, arbitrary).normalize();
 		let tangent2 = new Vector3().crossVectors(this.upDir, tangent1).normalize();
 
-		// Compose the offset vector on plane + along upDir
-		let offset = tangent1.multiplyScalar(randomPointInCircle.x * 3)
-			.add(tangent2.multiplyScalar(randomPointInCircle.y * 3))
-			.add(this.upDir.clone().multiplyScalar(1 + Math.sqrt(Math.random()) * 3));
+		// Uniform hemisphere sampling matching theetaMin=0 theaMax=90 phi Variance=360.
+		let cosTheta = Math.random();
+		let sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+		let phi = Math.random() * Math.PI * 2; // full 360 deg around upDir
 
-		let targetPos = offset.multiplyScalar(distanceFac).add(this.pos);
+		let velocity = tangent1.clone().multiplyScalar(Math.cos(phi) * sinTheta)
+			.add(tangent2.clone().multiplyScalar(Math.sin(phi) * sinTheta))
+			.add(this.upDir.clone().multiplyScalar(cosTheta))
+			.multiplyScalar(speed);
 
 		let trail: Trail = {
 			type: type,
 			smokeEmitter: emitter,
-			targetPos: targetPos,
+			velocity: velocity,
 			spawnTime: time,
 			lifetime: lifetime
 		};

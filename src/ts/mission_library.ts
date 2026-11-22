@@ -12,6 +12,7 @@ export abstract class MissionLibrary {
 	static goldAdvanced: Mission[] = [];
 	static goldSandbox: Mission[] = [];
 	static goldCustom: Mission[] = [];
+	static goldChallenge: Mission[] = [];
 
 	static platinumBeginner: Mission[] = [];
 	static platinumIntermediate: Mission[] = [];
@@ -118,6 +119,7 @@ export abstract class MissionLibrary {
 			else if (missionType === 'intermediate') this.goldIntermediate.push(mission);
 			else if (missionType === 'advanced') this.goldAdvanced.push(mission);
 			else if (missionType === 'sandbox') this.goldSandbox.push(mission);
+			else if (missionType === 'challenge') this.goldChallenge.push(mission);
 			else this.goldCustom.push(mission);
 			this.allMissions.push(mission);
 		}
@@ -152,6 +154,7 @@ export abstract class MissionLibrary {
 		for (let i = 0; i < this.goldAdvanced.length; i++) this.goldAdvanced[i].initSearchString();
 		for (let i = 0; i < this.goldSandbox.length; i++) this.goldSandbox[i].initSearchString();
 		for (let i = 0; i < this.goldCustom.length; i++) this.goldCustom[i].initSearchString();
+		for (let i = 0; i < this.goldChallenge.length; i++) this.goldChallenge[i].initSearchString();
 
 		for (let i = 0; i < this.platinumBeginner.length; i++) this.platinumBeginner[i].initSearchString();
 		for (let i = 0; i < this.platinumIntermediate.length; i++) this.platinumIntermediate[i].initSearchString();
@@ -170,6 +173,7 @@ export abstract class MissionLibrary {
 			this.goldAdvanced,
 			this.goldSandbox,
 			this.goldCustom,
+			this.goldChallenge,
 			this.platinumBeginner,
 			this.platinumIntermediate,
 			this.platinumAdvanced,

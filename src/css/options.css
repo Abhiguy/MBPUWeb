@@ -32,6 +32,13 @@
 	left: 294px;
 }
 
+#tab-misc {
+	position: absolute;
+	display: block;
+	top: 57px;
+	left: 427px;
+}
+
 #options-home {
 	display: block;
 	position: absolute;
@@ -119,6 +126,13 @@
 	display: block;
 	position: absolute;
 	top: 332px;
+	left: 155px;
+}
+
+#graphics-low-latency {
+	display: block;
+	position: absolute;
+	top: 359px;
 	left: 155px;
 }
 
@@ -228,6 +242,170 @@
 	font-family: Arial, sans-serif;
 	font-size: 11px;
 	line-height: 13px;
+}
+
+#options-misc {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+#misc-low-latency {
+	display: block;
+	position: absolute;
+	top: 120px;
+	left: 325px;
+}
+
+#misc-low-latency-label {
+    display: block;
+    position: absolute;
+    top: 131px;
+    left: 143px;
+    margin: 0;
+    font-family: 'DomCasualRegular';
+    font-size: 26px;
+    pointer-events: none;
+	white-space: nowrap;
+}
+
+#misc-scroll {
+	position: absolute;
+	top: 88px;
+	left: 24px;
+	width: 424px;
+	height: 248px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	box-sizing: border-box;
+	padding-left: 14px; /* keeps the first letters (e.g. the J of Joystick) from being clipped by the left edge */
+}
+
+.misc-heading {
+	font-family: 'DomCasualRegular';
+	font-size: 26px;
+	text-align: center;
+	margin: 6px 0 2px 0;
+	pointer-events: none;
+}
+
+.misc-row {
+	display: flex;
+	align-items: center;
+	height: 40px;
+	font-family: 'DomCasualRegular';
+	font-size: 20px;
+	white-space: nowrap;
+}
+
+.misc-row-label {
+	flex: none;
+	width: 190px;
+	pointer-events: none;
+}
+
+.misc-row-value {
+	flex: none;
+	width: 46px;
+	margin-right: 8px;
+	text-align: right;
+	pointer-events: none;
+}
+
+.misc-dropdown {
+	position: relative;
+	flex: none;
+	width: 150px;
+}
+
+.misc-dropdown > img {
+	display: block;
+	width: 150px;
+	height: auto;
+}
+
+.misc-dropdown-label {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: Arial, sans-serif;
+	font-size: 12px;
+	font-weight: bold;
+	pointer-events: none;
+}
+
+/* A small box with the game's playgui.png panel as its background, opening below the button */
+.misc-dropdown-list {
+	position: absolute;
+	z-index: 5;
+	top: 100%;
+	right: 0;
+	width: 162px;
+	box-sizing: border-box;
+	padding: 10px 8px;
+	background-repeat: no-repeat;
+	background-size: 100% 100%;
+	font-family: 'DomCasualRegular';
+	font-size: 18px;
+	white-space: nowrap;
+}
+
+.misc-dropdown-list > div {
+	padding: 2px 4px;
+	cursor: pointer;
+}
+
+.misc-dropdown-list > div:hover {
+	background: rgba(255, 255, 255, 0.45);
+}
+
+.misc-slider {
+	position: relative;
+	flex: none;
+	width: 150px;
+	height: 28px;
+	cursor: pointer;
+	touch-action: none;
+}
+
+/* The game's own slider bar image; JS crops away the "Music Volume" text baked into its left side. */
+.misc-track-clip {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	width: 150px;
+	transform: translateY(-50%);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.misc-track-clip > img {
+	position: absolute;
+	display: block;
+	top: 0;
+	max-width: none;
+	pointer-events: none;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+
+.misc-slider > img.misc-knob {
+	position: absolute;
+	display: block;
+	top: 50%;
+	left: 0;
+	width: 22px;
+	height: auto;
+	transform: translateY(-50%);
+	pointer-events: none;
+	user-select: none;
+	-webkit-user-drag: none;
 }
 
 #controls-background {

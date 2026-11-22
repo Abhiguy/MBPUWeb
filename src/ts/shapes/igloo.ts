@@ -79,7 +79,13 @@ export class IglooItem extends Shape {
 			this.snowballs.forEach(snowball => {
 				if (snowball.addedTime < time.currentAttemptTime + 10) {
 					snowball.position.add(snowball.direction.clone().multiplyScalar(7 / PHYSICS_TICK_RATE));
-					snowball.entity.setTransform(snowball.position, this.group.orientation, new Vector3(1, 1, 1));
+					// Only show snowball if marble is ever near to the igloo.
+					let dist = this.level.marble.body.position.distanceTo(this.worldPosition);
+					if (dist < 10) {
+						snowball.entity.setTransform(snowball.position, this.group.orientation, new Vector3(1, 1, 1));
+					} else {
+						snowball.entity.setTransform(snowball.position, this.group.orientation, new Vector3(0.01, 0.01, 0.01));
+					}
 					snowball.entity.group.recomputeTransform();
 				}
 			});

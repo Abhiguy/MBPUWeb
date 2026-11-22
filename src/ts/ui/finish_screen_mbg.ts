@@ -57,6 +57,8 @@ export class MbgFinishScreen extends FinishScreen {
 			this.failedToQualify = (parseInt(level.score.toString().replace(/,/g, '')) <= parseInt(level.mission.qualifyScore.toString().replace(/,/g, '')));
 		} else {
 			this.failedToQualify = (elapsedTime > level.mission.qualifyTime);
+			let minQualifyTime = parseFloat(level.mission.missionInfo?.qualifymintime ?? '');
+			if (isFinite(minQualifyTime) && level.finishTime.gameplayClock < minQualifyTime) this.failedToQualify = true;
 		}
 
 		//this.time.textContent = Util.secondsToTimeString(level.finishTime.gameplayClock / 1000);
@@ -118,8 +120,14 @@ export class MbgFinishScreen extends FinishScreen {
 
 	}
 
-	showMessage(type: 'failed' | 'qualified' | 'gold' | 'ultimate') {
+	showMessage(type: 'failed' | 'qualified' | 'gold' | 'ultimate' | 'challenge') {
 		this.message.style.color = '';
+
+		if (type === 'challenge') {
+			this.message.textContent = 'You beat the challenge!';
+			this.message.style.color = '#00cc00';
+			return;
+		}
 
 		if (type === 'ultimate') {
 			this.message.innerHTML = 'You beat the <span style="color: #fff700;">ULTIMATE</span> time!';

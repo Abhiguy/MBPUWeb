@@ -56,14 +56,15 @@ export abstract class LoadingScreen {
 
 			if (this.loadingIndex !== indexAtStart) return;
 
+			let level = new Level(mission);
+			state.level = level;
+
 			this.refresher = setInterval(() => {
 				// Constantly refresh the loading bar's width
 				let completion = level.getLoadingCompletion();
 				this.progressBar.style.width = (completion * this.maxProgressBarWidth) + 'px';
 			}) as unknown as number;
 
-			let level = new Level(mission);
-			state.level = level;
 			await level.init();
 
 			let replay = await replayPromise;
@@ -79,20 +80,13 @@ export abstract class LoadingScreen {
 			}
 			clearInterval(this.refresher);
 
-			// Fake some second loading pass
-			let start = performance.now();
-			this.refresher = setInterval(() => {
-				let completion = Util.clamp((performance.now() - start) / 100, 0, 1);
-				this.progressBar.style.width = (completion * this.maxProgressBarWidth) + 'px';
-			}) as unknown as number;
-
+			// Brief pause to let the bar visually settle at 100% before starting gameplay
 			await Util.wait(150);
 
 			if (this.loadingIndex !== indexAtStart) {
 				level.dispose();
 				return;
 			}
-			clearInterval(this.refresher);
 
 			// Loading has finished, hop into gameplay.
 

@@ -15,6 +15,12 @@ export class TrapDoor extends Shape {
 	timeout = 0;
 	lastDirection: number;
 	lastCompletion = 0;
+	stayOpen = false;
+	counted = false;
+	/** Set on reset so the next full tick rebuilds the collision geometry (see tick). */
+	collisionStale = false;
+	/** Set when a respawn starts the closing animation; once it finishes, the collision geometry gets one last rebuild. */
+	closing = false;
 	sounds = ['trapdooropen.wav'];
 
 	constructor(element: MissionElementStaticShape) {
@@ -32,6 +38,17 @@ export class TrapDoor extends Shape {
 
 		// Override the keyframe
 		this.sequenceKeyframeOverride.set(this.dts.sequences[0], currentCompletion * (this.dts.sequences[0].numKeyframes - 1));
+
+		if (this.closing && currentCompletion === 0) {
+			this.closing = false;
+			this.collisionStale = true;
+		}
+
+		if (!onlyVisual && this.collisionStale) {
+			this.lastSequenceKeyframes.delete(this.dts.sequences[0]);
+			this.collisionStale = false;
+		}
+
 		super.tick(time, onlyVisual);
 
 		if (onlyVisual) return;
@@ -50,21 +67,59 @@ export class TrapDoor extends Shape {
 	getCurrentCompletion(time: TimeState) {
 		let elapsed = time.timeSinceLoad - this.lastContactTime;
 		let completion = Util.clamp(elapsed / this.animationDuration, 0, 1);
-		if (elapsed > RESET_TIME) completion = Util.clamp(1 - (elapsed - RESET_TIME) / this.animationDuration, 0, 1);
+		if (elapsed > RESET_TIME && !this.stayOpen) completion = Util.clamp(1 - (elapsed - RESET_TIME) / this.animationDuration, 0, 1);
 
 		return completion;
 	}
 
-	onMarbleContact() {
+	open() {
 		let time = this.level.timeState;
 
-		if (time.timeSinceLoad - this.lastContactTime <= 0) return; // The trapdoor is queued to open, so don't do anything.
+		if (time.timeSinceLoad - this.lastContactTime <= 0) return false; // The trapdoor is queued to open, so don't do anything.
 		let currentCompletion = this.getCurrentCompletion(time);
 
 		// Set the last contact time accordingly so that the trapdoor starts closing (again)
 		this.lastContactTime = time.timeSinceLoad - currentCompletion * this.animationDuration;
 		if (currentCompletion === 0) this.lastContactTime += this.timeout;
 
+		// Only now: from here on the trapdoor stays open (King of the One-Use)
+		if (this.level.trapDoorsStayOpen) this.stayOpen = true;
+
+		return true;
+	}
+
+	onMarbleContact() {
+		if (!this.open()) return;
+
 		this.level.replay.recordMarbleContact(this);
+		if (this.level.isOneUse) this.level.openAllTrapDoors(this);
+
+		if (this.level.isTrapDoorCount && !this.counted) {
+			this.counted = true;
+			this.level.registerTrapDoorHit();
+		}
+	}
+
+	reset() {
+		super.reset();
+
+		// King of the One-Use and King of the Trapdoors: trapdoors stay open during an attempt, but every respawn closes them again
+		if (this.level.trapDoorsStayOpen) {
+			let time = this.level.timeState;
+			let completion = this.getCurrentCompletion(time);
+
+			if (completion > 0) {
+				// Close from wherever the trapdoor currently is, with the normal closing animation and sound
+				this.lastContactTime = time.timeSinceLoad - RESET_TIME - (1 - completion) * this.animationDuration;
+				this.closing = true;
+			} else {
+				this.lastContactTime = -Infinity;
+				this.lastCompletion = 0;
+			}
+
+			this.stayOpen = false;
+			this.counted = false;
+			this.collisionStale = true;
+		}
 	}
 }

@@ -1,5 +1,6 @@
 import { Util } from "./util";
 import { executeOnWorker } from "./worker";
+import { state } from "./state";
 
 /** name, time, scoreId, timestamp */
 export type BestTimes = [name: string, time: number, scoreId: string, timestamp: number][];
@@ -44,6 +45,8 @@ export interface StorageData {
 		inputType: number,
 		frameRateCap: number,
 		canvasDesynchronized: boolean,
+		/** If true, powerups don't apply their visual effects (e.g. the FOV change). */
+		disablePowerupEffects: boolean,
 
 		joystickPosition: number,
 		joystickSize: number,
@@ -123,6 +126,7 @@ const DEFAULT_STORAGE_DATA: StorageData = {
 		inputType: 0,
 		frameRateCap: 7,
 		canvasDesynchronized: !/(CrOS)/.test(navigator.userAgent), // Turn it off when on ChromeOS (some people on Chromebooks have reported flickering)
+		disablePowerupEffects: false,
 
 		joystickPosition: 0,
 		joystickSize: 250,
@@ -205,14 +209,14 @@ export abstract class StorageManager {
 				// For storing replays
 				try {
 					db.createObjectStore('replays', {});
-				} catch (error) {
+				} catch  {
 					transaction.objectStore('replays');
 				}
 
 				// A simple key-value store
 				try {
 					db.createObjectStore('keyvalue', {});
-				} catch (error) {
+				} catch  {
 					transaction.objectStore('keyvalue');
 				}
 			};
@@ -246,6 +250,9 @@ export abstract class StorageManager {
 				console.error("Error decoding best times!", e);
 			}
 		}
+		// Restore selected marble
+		let savedMarble = await this.databaseGet('keyvalue', 'selectedMarble');
+		if (savedMarble) state.selectedMarble = savedMarble;
 
 		Util.getDefaultSecondsToTimeStringDecimalDigits = () => this.data.settings.showThousandths? 3 : 2;
 	}

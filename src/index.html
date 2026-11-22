@@ -9,9 +9,9 @@
 		<meta property="og:title" content="Marble Blast Powered Up Web">
 		<meta property="og:type" content="website">
 		<meta property="og:description" content="A web port of Marble Blast Powered Up: In this 3D platformer classic, race your marble to the finish as fast as possible while escaping from dangerous hazards and grabbing new collectibles.. Marble Blast powered Up is a mod of Marble blast Gold , focused on introducing new power-ups and features to remix existing levels and create new ones. Play Marble Blast Powered Up online right in your browser or on your mobile device.">
-		<meta property="og:image" content="https://marbleblast.vaniverse.io/assets/img/mbp.png">
+		<meta property="og:image" content="https://marbleblast-abhiverse.dedyn.io/assets/img/marble-blast-gold-logo.png">
 		<!--<meta name="DISABLED twitter:card" content="summary_large_image">-->
-		<link rel="shortcut icon" href="./assets/img/mbp.png" id="favicon">
+		<link rel="shortcut icon" href="./assets/img/marble-blast-gold-logo.png" id="favicon">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 		<link rel="manifest" href="/manifest.json">
 		<link rel="apple-touch-icon" href="./assets/img/app-icon/180x180.png">
@@ -23,6 +23,8 @@
 		<link rel="stylesheet" href="./css/home_mbp.css">
 		<link rel="stylesheet" href="./css/level_select.css">
 		<link rel="stylesheet" href="./css/level_select_mbp.css">
+		<link rel="stylesheet" href="./css/level_select_marble.css">
+		<link rel="stylesheet" href="./css/level_select_challenge.css">
 		<link rel="stylesheet" href="./css/loading.css">
 		<link rel="stylesheet" href="./css/loading_mbp.css">
 		<link rel="stylesheet" href="./css/help.css">
@@ -182,8 +184,6 @@
 		<div id="mbp-menu" class="hidden">
 			<img id="mbp-background-image">
 			<p id="mbp-version"></p>
-			<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Buy Me a Coffee', '#72a4f2', 'L4L71J89I2');kofiwidget2.draw();</script> 
-
 			<div id="mbp-home-screen" class="hidden">
 				<div class="_inner">
 					<img id="mbp-home-quit">
@@ -209,7 +209,7 @@
 				<img id="mbp-level-select-home-button">
 				<img id="mbp-level-select-view-toggle" title="Show scores">
 				<img id="mbp-load-replay-button" title="Load replay from file (Shift-Click to render replay to video, Alt-Shift-Click to render compilation)">
-				<img id="mbp-shuffle-button" title="Go to random level">
+				<img id="mbp-shuffle-button" title="Go to random level" style = "display: none;">
 				<img id="mbp-level-select-prev">
 				<img id="mbp-level-select-play">
 				<img id="mbp-level-select-next">
@@ -217,9 +217,9 @@
 				<img id="mbp-level-image">
 				<img src="./assets/ui_mbp/play/levelframe.png" id="mbp-level-select-frame">
 				<img id="mbp-level-select-egg" class="hidden">
-				<div id="mbp-search-bar"></div>
-				<input id="mbp-search-input" maxlength="40" placeholder="Search levels" autocomplete="off" autocorrect="off" spellcheck="false">
-				<img id="mbp-sort-icon" src="./assets/svg/event_FILL0_wght400_GRAD0_opsz24.svg" title="Toggle sort">
+				<div id="mbp-search-bar" style = "display:none;"></div>
+				<input id="mbp-search-input" maxlength="40" placeholder="Search levels" autocomplete="off" autocorrect="off" spellcheck="false" style = "display: none;">
+				<img id="mbp-sort-icon" src="./assets/svg/event_FILL0_wght400_GRAD0_opsz24.svg" title="Toggle sort" style = "display: none;">
 
 				<div id="mbp-difficulty-selector">
 					<img id="mbp-difficulty-selector-collapsed">
@@ -299,8 +299,6 @@
 					z-index: 1;
 				}
 			</style>
-			<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Buy Me a Coffee', '#72a4f2', 'L4L71J89I2');kofiwidget2.draw();</script> 
-
 			<div id="home-screen" class="hidden">
 				<div class="_inner">
 					<img src="./assets/ui/home/homegui.png">
@@ -343,21 +341,129 @@
 						<div id="leaderboard-scores" style="box-sizing: border-box;"></div>
 					</div>
 				</div>
+				<img src="./assets/ui/play/challenge_n.png" id="tab-challenge"
+					data-normal="./assets/ui/play/challenge_n.png"
+					data-hover="./assets/ui/play/challenge_h.png"
+					data-down="./assets/ui/play/challenge_d.png">
 				<img src="./assets/ui/play/back_n.png" id="level-select-home-button">
 				<div id="level-select-level-window">
 					<img src="./assets/ui/play/level_window.png">
 					<img id="level-image">
 					<p id="level-number"></p>
-					<div id="search-bar"></div>
-					<input id="search-input" maxlength="40" placeholder="Search levels" autocomplete="off" autocorrect="off" spellcheck="false">
-					<img id="sort-icon" src="./assets/svg/event_FILL0_wght400_GRAD0_opsz24.svg" title="Toggle sort">
+					<div id="search-bar" style = "display:none;"></div>
+					<input id="search-input" maxlength="40" placeholder="Search levels" autocomplete="off" autocorrect="off" spellcheck="false" style = "display: none;">
+					<img id="sort-icon" src="./assets/svg/event_FILL0_wght400_GRAD0_opsz24.svg" title="Toggle sort" style = "display: none;">
 					<p id="new-badge" class="hidden">New!</p>
 				</div>
 				<img id="level-select-prev">
 				<img id="level-select-play">
 				<img id="level-select-next">
-				<img src="./assets/img/round_play_circle_outline_black_18dp.png" id="load-replay-button" title="Load replay from file (Shift-Click to render replay to video, Alt-Shift-Click to render compilation)">
-				<img src="./assets/img/shuffle.png" id="shuffle-button" title="Go to random level">
+				<img src="./assets/img/round_play_circle_outline_black_18dp.png" id="load-replay-button" title="Load replay from file (Shift-Click to render replay to video, Alt-Shift-Click to render compilation)" style = "display: none;">
+				<img src="./assets/img/shuffle.png" id="shuffle-button" title="Go to random level" style = "display: none;">
+
+				<!-- Marble Selector Button -->
+				<img id="mbp-marble-selector-button" src="./assets/img/marbles/marble.png" title="Select Marble" alt="Select Marble">
+			</div>
+
+			<!-- Marble Selector Modal (Gold screen) -->
+			<div id="mbp-marble-selector-modal" class="hidden">
+				<div class="mbp-marble-modal-window">
+					<!-- playgui.png background panel -->
+					<img src="./assets/ui/play/playgui.png" class="mbp-marble-modal-bg" alt="">
+
+					<!-- Marble name centered top -->
+					<div id="mbp-marble-modal-name">Default Marble</div><div id="mbp-marble-modal-desc"></div><div id="mbp-marble-counter"></div>
+
+					<!-- Marble preview wrapped so spin doesn't break centering -->
+					<!-- Canvas is injected here by MarbleSelectorUI -->
+					<div id="mbp-marble-preview-wrap"></div>
+
+					<!-- Prev: _n normal, _h hover, _d pressed -->
+					<img id="mbp-marble-prev-btn"
+						src="./assets/ui/play/prev_n.png"
+						data-normal="./assets/ui/play/prev_n.png"
+						data-hover="./assets/ui/play/prev_h.png"
+						data-down="./assets/ui/play/prev_d.png"
+						alt="Previous">
+
+					<!-- Buy: disabled/greyed, no interaction -->
+					<img id="mbp-marble-buy-btn"
+						src="./assets/ui/play/buy_i.png"
+						alt="Buy">
+
+					<!-- Use (confirm selection): _n normal, _h hover, _d pressed -->
+					<img id="mbp-marble-confirm-btn"
+						src="./assets/ui/play/use_n.png"
+						data-normal="./assets/ui/play/use_n.png"
+						data-hover="./assets/ui/play/use_h.png"
+						data-down="./assets/ui/play/use_d.png"
+						alt="Use">
+
+					<!-- Next: _n normal, _h hover, _d pressed -->
+					<img id="mbp-marble-next-btn"
+						src="./assets/ui/play/next_n.png"
+						data-normal="./assets/ui/play/next_n.png"
+						data-hover="./assets/ui/play/next_h.png"
+						data-down="./assets/ui/play/next_d.png"
+						alt="Next">
+				</div>
+			</div>
+
+			<!-- Challenge Selector Modal (Gold screen) -->
+			<div id="challenge-modal" class="hidden">
+				<div class="challenge-modal-window">
+					<!-- playgui.png background panel -->
+					<img src="./assets/ui/play/playgui.png" class="challenge-modal-bg" alt="">
+					<div id="challenge-corner-label">Challenges</div>
+
+					<!-- Challenge info text window -->
+					<div id="challenge-text-window">
+						<img src="./assets/ui/play/text_window.png" style="position: absolute; top: 0; left: 0; z-index: -1;">
+						
+						<!-- Challenge title outside scrollable area -->
+						<p id="challenge-title"></p>
+						
+						<div id="challenge-text-window-scrollable">
+						<p id="challenge-difficulty"></p>
+						<p id="challenge-description"></p>
+						<p id="challenge-author"></p>
+							<p id="challenge-best-time-heading">Best Time:</p>
+							<p id="challenge-best-time"></p>
+						</div>
+					</div>
+
+					<!-- Prev Button: _n normal, _h hover, _d pressed -->
+					<img id="challenge-prev-btn"
+						src="./assets/ui/play/prev_n.png"
+						data-normal="./assets/ui/play/prev_n.png"
+						data-hover="./assets/ui/play/prev_h.png"
+						data-down="./assets/ui/play/prev_d.png"
+						alt="Previous">
+
+					<!-- Play Button: _n normal, _h hover, _d pressed -->
+					<img id="challenge-play-btn"
+						src="./assets/ui/play/play_n.png"
+						data-normal="./assets/ui/play/play_n.png"
+						data-hover="./assets/ui/play/play_h.png"
+						data-down="./assets/ui/play/play_d.png"
+						alt="Play">
+
+					<!-- Back Button: _n normal, _h hover, _d pressed -->
+					<img id="challenge-back-btn"
+						src="./assets/ui/play/backc_n.png"
+						data-normal="./assets/ui/play/backc_n.png"
+						data-hover="./assets/ui/play/backc_h.png"
+						data-down="./assets/ui/play/backc_d.png"
+						alt="Back">
+
+					<!-- Next Button: _n normal, _h hover, _d pressed -->
+					<img id="challenge-next-btn"
+						src="./assets/ui/play/next_n.png"
+						data-normal="./assets/ui/play/next_n.png"
+						data-hover="./assets/ui/play/next_h.png"
+						data-down="./assets/ui/play/next_d.png"
+						alt="Next">
+				</div>
 			</div>
 
 			<div id="loading" class="hidden">
@@ -519,6 +625,7 @@
 				<img src="./assets/ui/options/graf_tab.png" id="tab-graphics">
 				<img src="./assets/ui/options/aud_tab.png" id="tab-audio">
 				<img src="./assets/ui/options/cntr_tab.png" id="tab-controls">
+				<img src="./assets/ui/options/misc_tab.png" id="tab-misc">
 				<img src="./assets/ui/options/mainm_n.png" id="options-home">
 
 				<div id="options-graphics">
@@ -534,13 +641,6 @@
 					<img id="graphics-depth32">
 					<img id="graphics-shadows">
 					<img id="graphics-apply">
-					<div id="graphics-marble-texture-heading">Custom Marble Texture:</div>
-					<img id="graphics-marble-texture-choose">
-					<div id="graphics-marble-texture-choose-text">Choose</div>
-					<img id="graphics-marble-texture-reset">
-					<div id="graphics-marble-texture-reset-text">Reset</div>
-					<p id="graphics-reflective-marble-heading">Reflective Marble:</p>
-					<img id="graphics-reflective-marble">
 				</div>
 
 				<div id="options-audio">
@@ -554,6 +654,16 @@
 						Version: OpenAL 1.0<br>
 						Renderer: Software<br>
 						Extensions: EAX 2.0, EAX 3.0, EAX Unified, and EAX-AC3
+					</div>
+				</div>
+
+				<div id="options-misc" class="hidden">
+					<div id="misc-scroll">
+						<div class="misc-row">
+							<span class="misc-row-label">Disable PowerUp Effects:</span>
+							<span class="misc-row-value"></span>
+							<img id="misc-disable-powerup-effects">
+						</div>
 					</div>
 				</div>
 
@@ -654,10 +764,30 @@
 		<div style="font-family: MarkerFelt; opacity: 0; pointer-events: none;">ABC</div>
 		<div style="font-family: Chakra Petch; opacity: 0; pointer-events: none;">ABC</div>
 		
+		<!-- Marble selector button hover swapping -->
+		<script>
+			document.addEventListener('DOMContentLoaded', function() {
+				['mbp-marble-prev-btn','mbp-marble-next-btn','mbp-marble-confirm-btn','tab-challenge','challenge-prev-btn','challenge-next-btn','challenge-back-btn','challenge-play-btn'].forEach(function(id) {
+					var el = document.getElementById(id);
+					if (!el) return;
+					el.addEventListener('mouseenter', function() {
+						if (el.dataset.hover) el.src = el.dataset.hover;
+					});
+					el.addEventListener('mouseleave', function() {
+						if (el.dataset.normal) el.src = el.dataset.normal;
+					});
+					el.addEventListener('mousedown', function() {
+						if (el.dataset.down) el.src = el.dataset.down;
+					});
+					el.addEventListener('mouseup', function() {
+						if (el.dataset.hover) el.src = el.dataset.hover;
+					});
+				});
+			});
+		</script>
 		<script src="./lib/oggdec.js" defer></script>
 		<script src="./lib/pako.js" defer></script>
 		<script src="./lib/jszip.js" defer></script>
-		<div></div> <!-- Force Sarcina to put these into different bundles -->
 		<!-- Main bundle -->
 		<script src="./js/bundle.js" defer></script>
 	</body>

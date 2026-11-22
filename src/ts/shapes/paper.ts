@@ -20,22 +20,14 @@ export class Paper extends PowerUp {
 	}
 
 	use() {
-		this.level.marble.enablePaper(this.level.timeState, this.paperTime); // Gee...flexible paper duration
+		// Only enable the paper timer/state on the marble; marble.tick() will observe this and apply effects
+		this.level.marble.enablePaper(this.level.timeState, this.paperTime);
 		this.isActive = true;
-		this.level.marble.jumpImpulse *= 3; // Paper powerup triples the jump impulse
-		this.level.marble.paper = true;
-		// Schedule deactivation after 5 seconds (5000 ms)
-		setTimeout(() => {
-			this.level.marble.paper = false;
-			this.level.marble.jumpImpulse = 7.3; // Restore jump impulse
-			this.isActive = false;
-		}, this.paperTime);
-
 		this.level.deselectPowerUp();
 	}
 	reset() {
 		this.level.marble.paper = false; // Probably the paper effect on marble is vanished if respawn
-		this.level.marble.jumpImpulse = 7.3; // Restore jump impulse
+		this.level.marble.jumpImpulse = this.level.marble.baseJumpImpulse; // Restore jump impulse
 		this.isActive = false; // Reset the paper if it were active and respawned
 		this.lastPickUpTime = null; // <-- Force available on restart
 	}

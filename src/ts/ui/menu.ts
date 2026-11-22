@@ -12,6 +12,8 @@ import { LoadingScreen } from "./loading";
 import { SCALING_RATIO, setEnterFullscreenButtonVisibility } from "./misc";
 import { OptionsScreen } from "./options";
 import { PauseScreen } from "./pause_screen";
+import { MarbleSelectorUI } from "./marble_selector"; // ← ADDED
+import { ChallengeSelectUI } from "./challenge_select"; // ← ADDED
 
 export abstract class Menu {
 	home: HomeScreen;
@@ -22,6 +24,8 @@ export abstract class Menu {
 	hud: Hud;
 	pauseScreen: PauseScreen;
 	finishScreen: FinishScreen;
+	marbleSelector: MarbleSelectorUI; // ← ADDED
+	challengeSelector: ChallengeSelectUI; // ← ADDED
 
 	menuDiv: HTMLDivElement;
 	backgroundImage: HTMLImageElement;
@@ -51,6 +55,8 @@ export abstract class Menu {
 		this.hud = this.createHud();
 		this.pauseScreen = this.createPauseScreen();
 		this.finishScreen = this.createFinishScreen();
+		this.marbleSelector = new MarbleSelectorUI(); // ← ADDED
+		this.challengeSelector = new ChallengeSelectUI(); // ← ADDED
 	}
 
 	abstract createHome(): HomeScreen;
@@ -190,14 +196,7 @@ export abstract class Menu {
 		this.menuDiv.classList.remove('hidden');
 		setEnterFullscreenButtonVisibility(true);
 
-		if (Util.isWeeb) {
-			let before = mainAudioManager.assetPath;
-			mainAudioManager.assetPath = ''; // Quick hack
-			this.music = mainAudioManager.createAudioSource('./assets/data_mbp/sound/music/pianoforte.ogg', mainAudioManager.musicGain);
-			mainAudioManager.assetPath = before;
-		} else {
-			this.music = mainAudioManager.createAudioSource(this.menuMusicSrc, mainAudioManager.musicGain);
-		}
+		this.music = mainAudioManager.createAudioSource(this.menuMusicSrc, mainAudioManager.musicGain);
 		this.music.setLoop(true);
 		this.music.play();
 
@@ -338,7 +337,15 @@ export abstract class Menu {
 	async init() {
 		mainAudioManager.setAssetPath(this.audioAssetPath);
 		await mainAudioManager.loadBuffers([this.menuMusicSrc, 'buttonover.wav', 'buttonpress.wav']);
-		await Promise.all([this.home.init(), this.levelSelect.init(), this.finishScreen.init(), this.optionsScreen.init(), this.helpScreen.init()]);
+		await Promise.all([
+			this.home.init(),
+			this.levelSelect.init(),
+			this.finishScreen.init(),
+			this.optionsScreen.init(),
+			this.helpScreen.init(),
+			this.marbleSelector.init(),     // ← ADDED
+			this.challengeSelector.init()  // ← ADDED
+		]);
 
 		// Load pop-up stuff:
 		await ResourceManager.loadImages([this.popupBackgroundSrc]);

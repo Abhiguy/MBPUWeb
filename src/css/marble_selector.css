@@ -1,0 +1,103 @@
+/** Marble Selector Styles */
+
+.marble-selector {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px;
+	background: rgba(0, 0, 0, 0.3);
+	border-radius: 8px;
+	margin-bottom: 20px;
+	border: 2px solid #4a9eff;
+}
+
+.marble-selector label {
+	color: #fff;
+	font-size: 16px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.marble-select-dropdown {
+	padding: 10px 12px;
+	background: rgba(0, 0, 0, 0.7);
+	color: #fff;
+	border: 2px solid #4a9eff;
+	border-radius: 4px;
+	font-size: 14px;
+	font-family: inherit;
+	cursor: pointer;
+	transition: all 0.3s ease;
+}
+
+.marble-select-dropdown:hover {
+	border-color: #6bb3ff;
+	box-shadow: 0 0 8px rgba(74, 158, 255, 0.5);
+}
+
+.marble-select-dropdown:focus {
+	outline: none;
+	border-color: #8ac3ff;
+	box-shadow: 0 0 12px rgba(74, 158, 255, 0.7);
+}
+
+.marble-select-dropdown option {
+	background: #1a1a1a;
+	color: #fff;
+	padding: 8px;
+}
+
+.marble-description {
+	color: #b0b0b0;
+	font-size: 13px;
+	font-style: italic;
+	line-height: 1.4;
+	min-height: 20px;
+}
+
+.marble-preview-container {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 60px;
+	background: rgba(255, 255, 255, 0.05);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.marble-preview {
+	max-height: 100%;
+	max-width: 100%;
+	object-fit: contain;
+	transition: transform 0.2s ease;
+}
+
+.marble-preview-container:hover .marble-preview {
+	transform: scale(1.1);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+	.marble-selector {
+		padding: 12px;
+		gap: 8px;
+	}
+
+	.marble-selector label {
+		font-size: 14px;
+	}
+
+	.marble-select-dropdown {
+		font-size: 13px;
+		padding: 8px 10px;
+	}
+
+	.marble-description {
+		font-size: 12px;
+	}
+
+	.marble-preview-container {
+		height: 50px;
+	}
+}

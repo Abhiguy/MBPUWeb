@@ -69,10 +69,6 @@ export class MbgMenu extends Menu {
 	}
 
 	async init() {
-		if (Util.isWeeb) {
-			this.backgroundImage.src = `./assets/img/weeb${Math.floor(4*Math.random() + 1)}.jpg`;
-		}
-
 		await super.init();
 	}
 }

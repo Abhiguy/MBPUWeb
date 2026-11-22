@@ -13,7 +13,7 @@ export class StartPad extends Shape {
 
 		const name = el._name; // With no further ado. If some levels have multiple startpads....they would be spawned at all of them
 		let nameReplaced = name.replace("StartPoint", ""); // Titled as Startpoint1, Startpoint2, etc.
-		const index = nameReplaced === "" ? -1 : parseInt(nameReplaced); // Titled as Startpoint1, Startpoint2, etc. 
+		const index = nameReplaced === "" ? -1 : parseInt(nameReplaced); // Titled as Startpoint1, Startpoint2, etc.
 		this.padIndex = index; // padIndex is used to handle the Array of StartPads
 		this.proximity = useProximity; // If true, the pad will only be visible when the marble is close to it.
 	}
