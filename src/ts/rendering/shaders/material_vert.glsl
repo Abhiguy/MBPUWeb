@@ -172,10 +172,10 @@ gl_Position = mvp * vec4(position, 1.0);
         for (int pi = 0; pi < 32; pi++) {
             if (pi >= pointLightCount) break;
             vec3 pointLightDir = pointLightPositionRange[pi].xyz - worldPosition.xyz;
-            float distance = length(pointLightDir);
-            if (distance < pointLightPositionRange[pi].w && distance > 0.0) {
+            float lightDist = length(pointLightDir);
+            if (lightDist < pointLightPositionRange[pi].w && lightDist > 0.0) {
                 pointLightDir = normalize(pointLightDir);
-                float attenuation = 1.0 - (distance / pointLightPositionRange[pi].w);
+                float attenuation = 1.0 - (lightDist / pointLightPositionRange[pi].w);
                 pointLightAccum += pointLightColor[pi] * lambert(transformedNormal, pointLightDir) * attenuation * attenuation;
             }
         }
