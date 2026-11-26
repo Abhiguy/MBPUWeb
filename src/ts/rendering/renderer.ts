@@ -267,6 +267,7 @@ export class Renderer {
 			gl.uniform1f(program.getUniformLocation('shininess'), material.shininess);
 			gl.uniform1f(program.getUniformLocation('reflectivity'), material.reflectivity);
 			gl.uniform1f(program.getUniformLocation('secondaryMapUvFactor'), material.secondaryMapUvFactor);
+			gl.uniform1f(program.getUniformLocation('vertexLightSnap'), (material as any).vertexLightCell ?? 8.0); // grid cell size for vertex-style point lighting (0 = per-pixel)
 
 			if (material.blending === BlendingType.Normal) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // Premultiplied alpha
 			else if (material.blending === BlendingType.Additive) gl.blendFunc(gl.SRC_ALPHA, gl.ONE);

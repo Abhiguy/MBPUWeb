@@ -7,7 +7,7 @@ precision mediump float;
 #ifdef IS_SKY
 varying vec3 eyeDirection;
 #else
-varying vec4 vPosition;
+varying highp vec4 vPosition;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying float vOpacity;
@@ -43,6 +43,12 @@ uniform float explosionRadius;      // The maximum radius of the effect
 uniform vec3 explosionColor;       // The RGB color of the light
 uniform sampler2D falloffTexture;  // 1D or 2D texture for custom brightness curves
 uniform bool useExplosion;
+
+// Point lights
+uniform highp vec3 pointLightColor[32];
+uniform highp vec4 pointLightPositionRange[32];
+uniform highp int pointLightCount;
+uniform highp float vertexLightSnap; // >0: vertex-lit material; light computed in vert shader, carried in vReflect :)
 uniform mediump sampler2D directionalLightShadowMap;
 
 #if defined(LOG_DEPTH_BUF) && defined(IS_WEBGL1)
@@ -112,6 +118,22 @@ float fresnel(vec3 direction, vec3 normal, bool invert) {
 	float factor = invert ? 1.0 - pow(product, exponent) : pow(product, exponent);
 
 	return factor;
+}
+
+// Sum of all point lights at one world position
+vec3 pointLightsAt(vec3 p, vec3 n) {
+	vec3 acc = vec3(0.0);
+	for (int pi = 0; pi < 32; pi++) {
+		if (pi >= pointLightCount) break;
+		vec3 dir = pointLightPositionRange[pi].xyz - p;
+		float dist = length(dir);
+		if (dist < pointLightPositionRange[pi].w && dist > 0.0) {
+			dir /= dist;
+			float att = 1.0 - (dist / pointLightPositionRange[pi].w);
+			acc += pointLightColor[pi] * lambert(n, dir) * att * att;
+		}
+	}
+	return acc;
 }
 
 void main() {
@@ -198,10 +220,20 @@ void main() {
 
 			incomingLight += addedLight;
 
-			// Per-vertex point light contribution (Gouraud shading like MBPU)
-			#if !defined(USE_ENV_MAP) || defined(USE_ACCURATE_REFLECTION_RAY)
-    incomingLight += vReflect;
-#endif
+			// Point lights
+			{
+				vec3 pNormal = normalize(normal);
+				if (!gl_FrontFacing) pNormal = -pNormal;
+				#if !defined(USE_ENV_MAP) || defined(USE_ACCURATE_REFLECTION_RAY)
+					if (vertexLightSnap > 0.0) {
+						incomingLight += vReflect; // classic vertex lighting,
+					} else {
+						incomingLight += pointLightsAt(vPosition.xyz, pNormal);
+					}
+				#else
+					incomingLight += pointLightsAt(vPosition.xyz, pNormal);
+				#endif
+			}
 
 			#ifdef USE_SPECULAR
 				vec3 viewDir = normalize(eyePosition - vPosition.xyz);

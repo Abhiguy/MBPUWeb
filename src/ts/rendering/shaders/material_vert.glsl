@@ -22,6 +22,7 @@ uniform float materialOpacity;
 uniform vec3 pointLightColor[32];
 uniform vec4 pointLightPositionRange[32];
 uniform int pointLightCount;
+uniform float vertexLightSnap; // >0: this material uses classic per-vertex point lighting
 
 varying vec4 vPosition;
 varying vec3 vNormal;
@@ -169,6 +170,7 @@ gl_Position = mvp * vec4(position, 1.0);
 
         // Per‑vertex point light accumulation
         vec3 pointLightAccum = vec3(0.0);
+        if (vertexLightSnap > 0.0)
         for (int pi = 0; pi < 32; pi++) {
             if (pi >= pointLightCount) break;
             vec3 pointLightDir = pointLightPositionRange[pi].xyz - worldPosition.xyz;
